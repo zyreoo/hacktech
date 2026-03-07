@@ -13,6 +13,7 @@ from pathlib import Path
 from .database import init_db
 from .routes import flights, flight_updates, runways, resources, alerts, infrastructure, passenger_flow, services, identity, retail, overview, aodb, prediction
 from .prediction import inference
+from .services.synthetic import start_synthetic_feeder, stop_synthetic_feeder
 
 
 @asynccontextmanager
@@ -20,8 +21,11 @@ async def lifespan(app: FastAPI):
     init_db()
     model_path = Path(__file__).parent / "models" / "delay_model.joblib"
     inference.load_model(model_path)
+    # Start synthetic data generator in the background so the dashboard always feels live.
+    start_synthetic_feeder()
     yield
-    # no shutdown needed for SQLite
+    # no shutdown needed for SQLite; stop background synthetic feeder
+    stop_synthetic_feeder()
 
 
 app = FastAPI(

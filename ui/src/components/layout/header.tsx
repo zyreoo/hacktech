@@ -4,7 +4,7 @@ import { Bell, RefreshCw } from "lucide-react";
 import { Button } from "@/components/modern-ui/button";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -15,6 +15,15 @@ interface HeaderProps {
 export function Header({ title, subtitle }: HeaderProps) {
   const queryClient = useQueryClient();
   const [spinning, setSpinning] = useState(false);
+  const [now, setNow] = useState<Date | null>(null);
+
+  useEffect(() => {
+    setNow(new Date());
+    const id = setInterval(() => {
+      setNow(new Date());
+    }, 1_000);
+    return () => clearInterval(id);
+  }, []);
 
   const handleRefresh = async () => {
     setSpinning(true);
@@ -30,8 +39,13 @@ export function Header({ title, subtitle }: HeaderProps) {
           <p className="text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
         <ThemeToggle />
+        {now && (
+          <div className="hidden text-xs font-mono text-muted-foreground sm:block">
+            {now.toLocaleTimeString()}
+          </div>
+        )}
         <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh all data">
           <RefreshCw className={cn("h-4 w-4 text-muted-foreground", spinning && "animate-spin")} />
         </Button>
