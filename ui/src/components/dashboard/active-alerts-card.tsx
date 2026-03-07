@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { AlertBanner } from "@/components/shared/alert-banner";
 import { EmptyState } from "@/components/shared/empty-state";
-import { SectionHeader } from "@/components/shared/section-header";
 import { Bell } from "lucide-react";
 import type { Alert } from "@/types/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/modern-ui/card";
 
 interface ActiveAlertsCardProps {
   alerts: Alert[];
@@ -19,19 +19,19 @@ export function ActiveAlertsCard({ alerts, maxItems = 5 }: ActiveAlertsCardProps
     .slice(0, maxItems);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-      <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-        <SectionHeader
-          title="Active Alerts"
-          icon={Bell}
-          action={
-            <Link href="/alerts" className="text-xs text-sky-600 hover:underline dark:text-sky-400">
-              View all →
-            </Link>
-          }
-        />
-      </div>
-      <div className="space-y-2 p-4">
+    <Card variant="default" className="overflow-hidden">
+      <CardHeader className="border-b border-border/50 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-base font-medium">Active Alerts</CardTitle>
+          </div>
+          <Link href="/alerts" className="text-xs text-primary hover:underline">
+            View all →
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 p-4">
         {sorted.length === 0 ? (
           <EmptyState
             title="No active alerts"
@@ -40,7 +40,7 @@ export function ActiveAlertsCard({ alerts, maxItems = 5 }: ActiveAlertsCardProps
         ) : (
           sorted.map((alert) => <AlertBanner key={alert.id} alert={alert} compact />)
         )}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
