@@ -2,7 +2,7 @@
 Airport Data Hub - Pydantic schemas for API request/response.
 """
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, ConfigDict, model_validator
 
 
@@ -308,3 +308,109 @@ class OverviewResponse(BaseModel):
     service_requests: List[PassengerServiceResponse] = []
     identity_verification_counts: dict = {}  # e.g. {"verified": 10, "pending": 2}
     retail_activity: List[RetailEventResponse] = []
+
+
+# ----- Passenger Journey State -----
+class PassengerJourneyStateBase(BaseModel):
+    passenger_reference: str
+    flight_id: int
+    current_state: str
+    previous_state: Optional[str] = None
+    state_entered_at: datetime
+    last_state_change: Optional[datetime] = None
+    current_location: Optional[str] = None
+    estimated_gate_arrival: Optional[datetime] = None
+    estimated_boarding_time: Optional[datetime] = None
+    stress_score: Optional[float] = None
+    dwell_time_minutes: Optional[int] = None
+
+
+class PassengerJourneyStateResponse(PassengerJourneyStateBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ----- Passenger Journey Events -----
+class PassengerJourneyEventBase(BaseModel):
+    passenger_reference: str
+    flight_id: int
+    event_type: str
+    event_location: Optional[str] = None
+    event_timestamp: datetime
+    token_reference: Optional[str] = None
+    scan_data: Optional[str] = None
+    previous_state: Optional[str] = None
+    new_state: Optional[str] = None
+
+
+class PassengerJourneyEventResponse(PassengerJourneyEventBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ----- Passenger Stress Metrics -----
+class PassengerStressMetricBase(BaseModel):
+    passenger_reference: str
+    flight_id: int
+    stress_score: float
+    stress_level: str
+    queue_length_factor: Optional[float] = None
+    time_pressure_factor: Optional[float] = None
+    walking_distance_factor: Optional[float] = None
+    flight_delay_factor: Optional[float] = None
+    current_location: Optional[str] = None
+    time_to_boarding: Optional[int] = None
+
+
+class PassengerStressMetricResponse(PassengerStressMetricBase):
+    id: int
+    calculated_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ----- Retail Opportunities -----
+class RetailOpportunityBase(BaseModel):
+    passenger_reference: str
+    flight_id: int
+    opportunity_start: datetime
+    opportunity_end: datetime
+    duration_minutes: int
+    terminal_zone: Optional[str] = None
+    current_location: Optional[str] = None
+    nearest_retail_outlets: Optional[str] = None
+    stress_level: Optional[str] = None
+    time_pressure: Optional[str] = None
+    retail_readiness_score: Optional[float] = None
+    recommended_categories: Optional[str] = None
+
+
+class RetailOpportunityResponse(RetailOpportunityBase):
+    id: int
+    created_at: datetime
+    expires_at: Optional[datetime] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ----- Passenger Insights -----
+class PassengerInsightBase(BaseModel):
+    flight_id: int
+    total_passengers: int
+    avg_stress_score: Optional[float] = None
+    high_stress_count: Optional[int] = None
+    avg_check_in_to_security: Optional[int] = None
+    avg_security_to_gate: Optional[int] = None
+    avg_dwell_time_post_security: Optional[int] = None
+    on_time_gate_arrival_rate: Optional[float] = None
+    late_gate_arrival_count: Optional[int] = None
+    total_retail_opportunity_minutes: Optional[int] = None
+    retail_ready_passengers: Optional[int] = None
+
+
+class PassengerInsightResponse(PassengerInsightBase):
+    id: int
+    calculated_at: datetime
+    flight_date: datetime
+    model_config = ConfigDict(from_attributes=True)
