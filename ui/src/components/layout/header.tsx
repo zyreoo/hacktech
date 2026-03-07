@@ -5,10 +5,11 @@ import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
 
 interface HeaderProps {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
@@ -35,7 +36,7 @@ export function Header({ title, subtitle }: HeaderProps) {
       <div>
         <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
         {subtitle && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+          <div className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</div>
         )}
       </div>
       <div className="flex items-center gap-4">

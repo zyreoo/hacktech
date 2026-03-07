@@ -31,8 +31,9 @@ export function RunwaySummary({ runways }: { runways: Runway[] }) {
                 )}
                 <div className="text-right">
                   <p className="text-xs text-slate-500">Grip</p>
-                  <p className={`font-mono text-sm font-bold ${
-                    (r.grip_score ?? 1) < 0.4 ? "text-red-600" :
+                  <p className={`font-mono text-sm font-bold transition-colors duration-500 ${
+                    (r.grip_score ?? 1) < 0.3 ? "text-red-600 animate-pulse" :
+                    (r.grip_score ?? 1) < 0.5 ? "text-orange-600" :
                     (r.grip_score ?? 1) < 0.7 ? "text-amber-600" : "text-emerald-600"
                   }`}>
                     {formatGripScore(r.grip_score)}

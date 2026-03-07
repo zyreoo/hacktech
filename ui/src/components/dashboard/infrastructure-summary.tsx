@@ -6,8 +6,17 @@ import type { InfrastructureAsset } from "@/types/api";
 
 export function InfrastructureSummary({ assets }: { assets: InfrastructureAsset[] }) {
   const issues = assets.filter(
-    (a) => a.tamper_detected || a.status === "offline" || a.status === "degraded"
+    (a) => a.tamper_detected || a.status === "offline" || a.status === "degraded" || a.status === "maintenance"
   );
+
+  // Show network health as a percentage for more visibility
+  const getHealthColor = (health: number | null) => {
+    if (!health) return "text-slate-400";
+    if (health < 0.3) return "text-red-600 animate-pulse";
+    if (health < 0.6) return "text-orange-600";
+    if (health < 0.8) return "text-amber-600";
+    return "text-emerald-600";
+  };
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
@@ -27,6 +36,11 @@ export function InfrastructureSummary({ assets }: { assets: InfrastructureAsset[
                 <p className="text-xs text-slate-500">{a.asset_type} · {a.location ?? "Unknown"}</p>
               </div>
               <div className="flex items-center gap-2">
+                {a.network_health !== null && (
+                  <span className={`text-xs font-mono transition-colors duration-500 ${getHealthColor(a.network_health)}`}>
+                    {Math.round(a.network_health * 100)}%
+                  </span>
+                )}
                 {a.tamper_detected && <StatusBadge label="Tamper" variant="danger" />}
                 <StatusBadge label={a.status} variant={infraStatusVariant(a.status)} />
               </div>
