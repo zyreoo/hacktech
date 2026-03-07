@@ -1,16 +1,20 @@
-import { SectionHeader } from "@/components/shared/section-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Wind } from "lucide-react";
 import { formatGripScore, runwayStatusVariant } from "@/lib/utils";
 import type { Runway } from "@/types/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/modern-ui/card";
 
 export function RunwaySummary({ runways }: { runways: Runway[] }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-      <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-        <SectionHeader title="Runway Conditions" icon={Wind} />
-      </div>
-      <div className="divide-y divide-slate-100 dark:divide-slate-800">
+    <Card variant="default" className="overflow-hidden">
+      <CardHeader className="border-b border-border/50 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Wind className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-base font-medium">Runway Conditions</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {runways.length === 0 ? (
           <p className="px-4 py-8 text-center text-xs text-slate-400">No runway data</p>
         ) : (
@@ -43,7 +47,8 @@ export function RunwaySummary({ runways }: { runways: Runway[] }) {
             </div>
           ))
         )}
-      </div>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

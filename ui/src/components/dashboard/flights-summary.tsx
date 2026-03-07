@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Plane } from "lucide-react";
 import { formatTime, formatDelay, flightStatusVariant } from "@/lib/utils";
 import type { Flight } from "@/types/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/modern-ui/card";
 
 interface FlightsSummaryProps {
   flights: Flight[];
@@ -14,19 +15,20 @@ export function FlightsSummary({ flights, maxItems = 8 }: FlightsSummaryProps) {
   const visible = flights.slice(0, maxItems);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-      <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-        <SectionHeader
-          title="Current Flights"
-          icon={Plane}
-          action={
-            <Link href="/flights" className="text-xs text-sky-600 hover:underline dark:text-sky-400">
-              View all →
-            </Link>
-          }
-        />
-      </div>
-      <div className="overflow-x-auto">
+    <Card variant="default" className="overflow-hidden">
+      <CardHeader className="border-b border-border/50 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Plane className="h-4 w-4 text-slate-500" />
+            <CardTitle className="text-base font-medium">Current Flights</CardTitle>
+          </div>
+          <Link href="/flights" className="text-xs text-primary hover:underline">
+            View all →
+          </Link>
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100 dark:border-slate-800">
@@ -84,6 +86,7 @@ export function FlightsSummary({ flights, maxItems = 8 }: FlightsSummaryProps) {
           </div>
         )}
       </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

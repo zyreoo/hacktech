@@ -1,6 +1,6 @@
-import { SectionHeader } from "@/components/shared/section-header";
 import { Users } from "lucide-react";
 import type { PassengerFlow } from "@/types/api";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/modern-ui/card";
 
 export function PassengerQueueSummary({ flows }: { flows: PassengerFlow[] }) {
   const totalCheckIn = flows.reduce((s, f) => s + f.check_in_count, 0);
@@ -15,11 +15,14 @@ export function PassengerQueueSummary({ flows }: { flows: PassengerFlow[] }) {
   const max = Math.max(...bars.map((b) => b.value), 1);
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-      <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-800">
-        <SectionHeader title="Passenger Flow" icon={Users} />
-      </div>
-      <div className="space-y-3 p-4">
+    <Card variant="default" className="overflow-hidden">
+      <CardHeader className="border-b border-border/50 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-slate-500" />
+          <CardTitle className="text-base font-medium">Passenger Flow</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 p-4">
         {bars.map(({ label, value, color }) => (
           <div key={label}>
             <div className="mb-1 flex items-center justify-between text-xs">
@@ -37,7 +40,7 @@ export function PassengerQueueSummary({ flows }: { flows: PassengerFlow[] }) {
           </div>
         ))}
         <p className="text-xs text-slate-400">Aggregated across {flows.length} flow records</p>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

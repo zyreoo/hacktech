@@ -1,18 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
+import { ThemeProvider } from "@/providers/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/layout/sidebar";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -28,18 +31,20 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} h-full bg-slate-50 font-sans antialiased dark:bg-slate-950`}
+        className={`${inter.variable} ${jetbrainsMono.variable} h-full bg-background font-sans antialiased`}
       >
-        <QueryProvider>
-          <TooltipProvider>
-            <div className="flex h-full">
-              <Sidebar />
-              <div className="flex min-h-full flex-1 flex-col overflow-hidden">
-                {children}
+        <ThemeProvider>
+          <QueryProvider>
+            <TooltipProvider>
+              <div className="flex h-full">
+                <Sidebar />
+                <div className="flex min-h-full flex-1 flex-col overflow-hidden">
+                  {children}
+                </div>
               </div>
-            </div>
-          </TooltipProvider>
-        </QueryProvider>
+            </TooltipProvider>
+          </QueryProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
