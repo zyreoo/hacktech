@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
+import { SimulationProvider } from "@/context/simulation-context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar } from "@/components/layout/sidebar";
 
@@ -35,6 +36,7 @@ export default function RootLayout({
       >
         <ThemeProvider>
           <QueryProvider>
+            <SimulationProvider>
             <TooltipProvider>
               <div className="flex h-full">
                 <Sidebar />
@@ -43,6 +45,7 @@ export default function RootLayout({
                 </div>
               </div>
             </TooltipProvider>
+            </SimulationProvider>
           </QueryProvider>
         </ThemeProvider>
       </body>

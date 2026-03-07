@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { EmptyState } from "@/components/shared/empty-state";
-import { useRunways } from "@/lib/hooks/queries";
+import { useRunwaysWithSimulation } from "@/lib/hooks/simulation-data";
 import { formatDateTime, formatGripScore, runwayStatusVariant } from "@/lib/utils";
 import { Wind, AlertTriangle, CheckCircle2 } from "lucide-react";
 
@@ -26,7 +26,7 @@ function GripBar({ score }: { score: number | null }) {
 }
 
 export default function RunwaysPage() {
-  const { data: runways = [], isLoading, isError, refetch } = useRunways();
+  const { data: runways = [], isLoading, isError, refetch } = useRunwaysWithSimulation();
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
