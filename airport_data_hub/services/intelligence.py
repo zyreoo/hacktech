@@ -10,6 +10,7 @@ from ..crud import (
     get_runways,
     get_infrastructure_assets,
     get_flights,
+    get_flight_by_id,
     get_flights_by_gate,
     create_alert,
 )
@@ -34,11 +35,13 @@ def run_queue_alerts(db: Session) -> int:
     flows = get_passenger_flows(db, skip=0, limit=50)
     for pf in flows:
         if pf.security_queue_count >= SECURITY_QUEUE_THRESHOLD:
+            flight = get_flight_by_id(db, pf.flight_id)
+            flight_ref = flight.flight_code if flight else f"flight_id={pf.flight_id}"
             key = f"queue:passenger_flow:{pf.id}"
             if create_alert(
                 db,
                 alert_type="queue",
-                message=f"Security queue count high: {pf.security_queue_count} at {pf.terminal_zone or 'N/A'} (flight_id={pf.flight_id})",
+                message=f"Security queue count high: {pf.security_queue_count} at {pf.terminal_zone or 'N/A'} for {flight_ref}",
                 severity="warning",
                 source_module="data_hub",
                 related_entity_type="passenger_flow",

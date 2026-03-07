@@ -10,7 +10,8 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 @router.get("", response_model=list[AlertResponse])
 def list_alerts(resolved: bool | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return get_alerts(db, resolved=resolved, skip=skip, limit=limit)
+    alerts = get_alerts(db, resolved=resolved, skip=skip, limit=limit)
+    return [AlertResponse.model_validate(a) for a in alerts]
 
 
 @router.get("/{id}", response_model=AlertResponse)
@@ -18,7 +19,7 @@ def get_alert(id: int, db: Session = Depends(get_db)):
     a = get_alert_by_id(db, id)
     if not a:
         raise HTTPException(status_code=404, detail="Alert not found")
-    return a
+    return AlertResponse.model_validate(a)
 
 
 @router.patch(
@@ -38,4 +39,4 @@ def patch_alert_resolve(
     a = update_alert_resolve(db, id, payload)
     if not a:
         raise HTTPException(status_code=404, detail="Alert not found")
-    return a
+    return AlertResponse.model_validate(a)
