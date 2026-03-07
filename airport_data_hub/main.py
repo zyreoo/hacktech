@@ -11,7 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pathlib import Path
 from .database import init_db
-from .routes import flights, flight_updates, runways, resources, alerts, infrastructure, passenger_flow, services, identity, retail, overview, aodb, prediction
+from .routes import (
+    flights, flight_updates, runways, resources, alerts, infrastructure, 
+    passenger_flow, services, identity, retail, overview, aodb, prediction,
+    passenger_journey, passenger_intelligence, retail_intelligence, passenger_insights,
+    infrastructure_monitoring
+)
 from .prediction import inference
 from .services.synthetic import start_synthetic_feeder, stop_synthetic_feeder
 
@@ -58,14 +63,27 @@ app.include_router(retail.router)
 app.include_router(overview.router)
 app.include_router(aodb.router)
 app.include_router(prediction.router)
+app.include_router(passenger_journey.router)
+app.include_router(passenger_intelligence.router)
+app.include_router(retail_intelligence.router)
+app.include_router(passenger_insights.router)
+app.include_router(passenger_flow.router)
+app.include_router(infrastructure_monitoring.router)
 
 
 @app.get("/")
 def root():
     return {
-        "message": "Airport Intelligence Platform - Data Hub API (AODB + Prediction)",
+        "message": "Airport Intelligence Platform - Data Hub API (AODB + Prediction + Passenger Services + Infrastructure Monitoring + Enhanced Passenger Flow)",
         "docs": "/docs",
         "overview": "/overview",
         "aodb": "/aodb/flights, /aodb/overview",
+        "passenger_flow": "/passenger-flow/dashboard/comprehensive",
+        "infrastructure_monitoring": "/infrastructure-monitoring/assets",
         "predict": "POST /predict, GET /predictions, GET /predictions/flights/{id}",
+        "passenger_journey": "/passenger-journey/*",
+        "passenger_intelligence": "/passenger-intelligence/*",
+        "retail_intelligence": "/retail-intelligence/*",
+        "passenger_insights": "/passenger-insights/*",
+        "infrastructure_monitoring": "/infrastructure-monitoring/*",
     }

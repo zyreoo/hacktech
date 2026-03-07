@@ -3,6 +3,7 @@ Seed airport_hub.db with realistic simulated data for demos and hackathon.
 Run from repo root: python -m airport_data_hub.seed
 """
 from datetime import datetime, timedelta
+import random
 import sys
 
 from .database import SessionLocal, init_db
@@ -181,13 +182,32 @@ def seed():
 
         # ----- InfrastructureAssets -----
         assets_data = [
-            ("Jet Bridge A12", "jet_bridge", "operational", 0.98, False, "T5 A12"),
-            ("Baggage Belt B", "baggage_belt", "operational", 0.92, False, "T5 Baggage"),
-            ("Camera Runway 09L", "camera", "operational", 1.0, False, "Runway 09L"),
-            ("Sensor Gate A1", "sensor", "degraded", 0.65, True, "T5 A1"),
+            ("Jet Bridge A12", "jet_bridge", "operational", 0.98, False, "T5 A12", "T5", "A12"),
+            ("Baggage Belt B", "baggage_belt", "operational", 0.92, False, "T5 Baggage", "T5", None),
+            ("Camera Runway 09L", "camera", "operational", 1.0, False, "Runway 09L", None, None),
+            ("Sensor Gate A1", "sensor", "degraded", 0.65, True, "T5 A1", "T5", "A1"),
         ]
-        for name, atype, status, health, tamper, loc in assets_data:
-            db.add(InfrastructureAsset(asset_name=name, asset_type=atype, status=status, network_health=health, tamper_detected=tamper, location=loc, last_updated=now))
+        for name, atype, status, health, tamper, loc, terminal, gate in assets_data:
+            db.add(InfrastructureAsset(
+                asset_name=name, 
+                asset_type=atype, 
+                status=status, 
+                network_health=health, 
+                tamper_detected=tamper, 
+                location=loc,
+                terminal=terminal,
+                gate=gate,
+                health_score=health,
+                last_heartbeat=now,
+                uptime_percentage=99.5,
+                error_count_24h=0,
+                usage_cycles=random.randint(100, 1000),
+                total_usage_time=random.uniform(500, 5000),
+                maintenance_priority="normal",
+                created_at=now - timedelta(days=random.randint(30, 365)),
+                updated_at=now,
+                last_updated_by="seed"
+            ))
         db.commit()
 
         # ----- PassengerServices -----

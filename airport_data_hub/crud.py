@@ -337,7 +337,7 @@ def update_infrastructure_status(db: Session, id: int, payload: InfrastructureSt
         asset.tamper_detected = payload.tamper_detected
     if payload.network_health is not None:
         asset.network_health = payload.network_health
-    asset.last_updated = datetime.utcnow()
+    asset.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(asset)
     return asset
