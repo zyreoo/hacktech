@@ -167,6 +167,11 @@ class RunwayHazardUpdate(BaseModel):
     hazard_type: Optional[str] = None
 
 
+class RunwayStatusUpdate(BaseModel):
+    """Simulation / ops: set runway status (e.g. closed, active)."""
+    status: str  # active, closed, maintenance
+
+
 # ----- Resources -----
 class ResourceBase(BaseModel):
     resource_name: str

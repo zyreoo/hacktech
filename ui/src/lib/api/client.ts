@@ -20,3 +20,8 @@ export async function post<T, B = unknown>(path: string, body: B): Promise<T> {
   const res = await apiClient.post<T>(path, body);
   return res.data;
 }
+
+export async function patch<T, B = unknown>(path: string, body: B): Promise<T> {
+  const res = await apiClient.patch<T>(path, body);
+  return res.data;
+}

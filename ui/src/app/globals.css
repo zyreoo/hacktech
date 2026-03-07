@@ -188,4 +188,27 @@
   .border-l-success {
     border-left: 3px solid #10B981;
   }
+
+  /* Command Center / Digital Twin Map */
+  @keyframes map-pulse-critical {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(1.08); }
+  }
+  @keyframes map-heat-shimmer {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.55; }
+  }
+  @keyframes map-selected-glow {
+    0%, 100% { filter: drop-shadow(0 0 6px currentColor); }
+    50% { filter: drop-shadow(0 0 12px currentColor); }
+  }
+  .map-pulse-critical {
+    animation: map-pulse-critical 2s ease-in-out infinite;
+  }
+  .map-heat-shimmer {
+    animation: map-heat-shimmer 3s ease-in-out infinite;
+  }
+  .map-selected-glow {
+    animation: map-selected-glow 2s ease-in-out infinite;
+  }
 }

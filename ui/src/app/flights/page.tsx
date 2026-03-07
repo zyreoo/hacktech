@@ -6,10 +6,10 @@ import { FlightsTable } from "@/components/flights/flights-table";
 import { FlightFilters, type FlightFilterState } from "@/components/flights/flight-filters";
 import { TableLoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { useFlights } from "@/lib/hooks/queries";
+import { useFlightsWithSimulation } from "@/lib/hooks/simulation-data";
 
 export default function FlightsPage() {
-  const { data: flights, isLoading, isError, refetch } = useFlights({ limit: 200 });
+  const { data: flights, isLoading, isError, refetch } = useFlightsWithSimulation({ limit: 200 });
 
   const [filters, setFilters] = useState<FlightFilterState>({
     search: "",

@@ -13,12 +13,14 @@ import {
   Cpu,
   ShoppingBag,
   ChevronRight,
+  LayoutGrid,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/modern-ui/scroll-area";
 
 const navItems = [
   { href: "/",               label: "Dashboard",      icon: LayoutDashboard },
+  { href: "/command-center", label: "Command Center", icon: LayoutGrid },
   { href: "/flights",        label: "Flights / AODB", icon: Plane },
   { href: "/alerts",         label: "Alerts",         icon: Bell },
   { href: "/predictions",    label: "Predictions",    icon: BrainCircuit },

@@ -9,12 +9,12 @@ import { PassengerQueueSummary } from "@/components/dashboard/passenger-queue-su
 import { InfrastructureSummary } from "@/components/dashboard/infrastructure-summary";
 import { CardLoadingState, SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { useOverview } from "@/lib/hooks/queries";
+import { useOverviewWithSimulation } from "@/lib/hooks/simulation-data";
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
 export default function DashboardPage() {
-  const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverview();
+  const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverviewWithSimulation();
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
 
