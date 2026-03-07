@@ -10,15 +10,33 @@ import { InfrastructureSummary } from "@/components/dashboard/infrastructure-sum
 import { CardLoadingState, SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { useOverview } from "@/lib/hooks/queries";
+import { useEffect, useState } from "react";
+import { Activity } from "lucide-react";
 
 export default function DashboardPage() {
-  const { data: overview, isLoading, isError, refetch } = useOverview();
+  const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverview();
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+
+  useEffect(() => {
+    if (dataUpdatedAt) {
+      setLastUpdate(new Date(dataUpdatedAt));
+    }
+  }, [dataUpdatedAt]);
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header
         title="Operations Dashboard"
-        subtitle="Real-time airport operational state"
+        subtitle={
+          <div className="flex items-center gap-2">
+            <span>Real-time airport operational state</span>
+            <div className="flex items-center gap-1 text-xs text-emerald-600">
+              <Activity className="h-3 w-3 animate-pulse" />
+              <span>Live</span>
+              <span className="text-slate-400">· Updated {lastUpdate.toLocaleTimeString()}</span>
+            </div>
+          </div>
+        }
       />
       <main className="flex-1 overflow-y-auto p-6">
         {isLoading && (

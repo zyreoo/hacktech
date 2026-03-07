@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Header } from "@/components/layout/header";
 import { MetricCard } from "@/components/shared/metric-card";
 import { SpinnerLoader } from "@/components/shared/loading-state";
@@ -11,11 +11,23 @@ import {
 } from "@/components/ui/table";
 import { usePassengerFlow } from "@/lib/hooks/queries";
 import { formatDateTime } from "@/lib/utils";
-import { Users, UserCheck, Shield, PlaneLanding } from "lucide-react";
+import { Users, UserCheck, Shield, PlaneLanding, Activity } from "lucide-react";
 import Link from "next/link";
 
 export default function PassengerFlowPage() {
   const { data: flows = [], isLoading, isError, refetch } = usePassengerFlow({ limit: 200 });
+
+  // Add update tracking
+  const [lastUpdate, setLastUpdate] = useState<string>('');
+  const [updateCount, setUpdateCount] = useState(0);
+  
+  useEffect(() => {
+    if (flows.length > 0) {
+      const latest = flows.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      setLastUpdate(new Date(latest.timestamp).toLocaleTimeString());
+      setUpdateCount(c => c + 1);
+    }
+  }, [flows]);
 
   const totals = useMemo(() => ({
     checkIn:   flows.reduce((s, f) => s + f.check_in_count, 0),
@@ -39,7 +51,21 @@ export default function PassengerFlowPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Header title="Passenger Flow" subtitle="Real-time passenger queue data across terminals" />
+      <Header 
+        title="Passenger Flow" 
+        subtitle={
+          <div className="flex items-center gap-2">
+            <span>Real-time passenger queue data across terminals</span>
+            {lastUpdate && (
+              <div className="flex items-center gap-1 text-xs text-emerald-600">
+                <Activity className="h-3 w-3 animate-pulse" />
+                <span>{lastUpdate}</span>
+                <span className="text-slate-400">#{updateCount}</span>
+              </div>
+            )}
+          </div>
+        } 
+      />
       <main className="flex-1 overflow-y-auto p-6">
         {isLoading && <SpinnerLoader />}
         {isError && <ErrorState message="Could not load passenger flow." onRetry={() => refetch()} />}
@@ -57,7 +83,7 @@ export default function PassengerFlowPage() {
                 title="Security Queue"
                 value={totals.security.toLocaleString()}
                 icon={Shield}
-                highlight={totals.security > 200 ? "warning" : "default"}
+                highlight={totals.security > 200 ? "warning" : totals.security > 100 ? "default" : "default"}
               />
               <MetricCard title="Boarding" value={totals.boarding.toLocaleString()} icon={PlaneLanding} />
               <MetricCard
@@ -100,7 +126,11 @@ export default function PassengerFlowPage() {
                           </TableCell>
                           <TableCell className="font-mono text-sm">{f.check_in_count}</TableCell>
                           <TableCell>
-                            <span className={`font-mono text-sm ${f.security_queue_count > 100 ? "font-bold text-amber-600" : ""}`}>
+                            <span className={`font-mono text-sm transition-colors duration-300 ${
+                              f.security_queue_count > 200 ? "font-bold text-red-600 animate-pulse" :
+                              f.security_queue_count > 150 ? "font-bold text-orange-600" :
+                              f.security_queue_count > 100 ? "font-bold text-amber-600" : ""
+                            }`}>
                               {f.security_queue_count}
                             </span>
                           </TableCell>

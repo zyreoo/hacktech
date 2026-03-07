@@ -6,10 +6,11 @@ import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 interface HeaderProps {
   title: string;
-  subtitle?: string;
+  subtitle?: ReactNode;
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
@@ -36,7 +37,7 @@ export function Header({ title, subtitle }: HeaderProps) {
       <div>
         <h1 className="text-base font-semibold text-foreground">{title}</h1>
         {subtitle && (
-          <p className="text-xs text-muted-foreground">{subtitle}</p>
+          <div className="text-xs text-muted-foreground">{subtitle}</div>
         )}
       </div>
       <div className="flex items-center gap-4">

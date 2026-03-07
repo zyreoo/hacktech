@@ -19,14 +19,14 @@ import {
 } from "@/lib/api/endpoints";
 import type { PredictRequest } from "@/types/api";
 
-const STALE = 5_000; // 5 s
+const STALE = 1_000; // 1 s for very responsive feel
 
 export const useOverview = () =>
   useQuery({
     queryKey: ["overview"],
     queryFn: fetchOverview,
     staleTime: STALE,
-    refetchInterval: 5_000,
+    refetchInterval: 1_000, // Very fast refresh for maximum visibility
   });
 
 export const useAodbOverview = () =>
@@ -46,7 +46,7 @@ export const useAlerts = (params?: { resolved?: boolean; limit?: number }) =>
     queryKey: ["alerts", params],
     queryFn: () => fetchAlerts(params),
     staleTime: STALE,
-    refetchInterval: 5_000,
+    refetchInterval: 1_000, // Very fast refresh for more dynamic alerts
   });
 
 export const useRunways = () =>
@@ -56,7 +56,12 @@ export const useResources = (params?: { limit?: number }) =>
   useQuery({ queryKey: ["resources", params], queryFn: () => fetchResources(params), staleTime: STALE });
 
 export const usePassengerFlow = (params?: { limit?: number }) =>
-  useQuery({ queryKey: ["passenger-flow", params], queryFn: () => fetchPassengerFlow(params), staleTime: STALE });
+  useQuery({ 
+    queryKey: ["passenger-flow", params], 
+    queryFn: () => fetchPassengerFlow(params), 
+    staleTime: STALE,
+    refetchInterval: 1_000, // Fast refresh for real-time passenger flow
+  });
 
 export const useInfrastructure = () =>
   useQuery({ queryKey: ["infrastructure"], queryFn: fetchInfrastructure, staleTime: STALE });
