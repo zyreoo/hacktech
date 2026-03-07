@@ -27,7 +27,6 @@ from ..schemas import (
     PassengerServiceResponse,
     DigitalIdentityStatusResponse,
     RetailEventResponse,
-    get_suggested_action,
 )
 
 
@@ -74,7 +73,6 @@ def _to_alert_response(a):
         created_at=a.created_at,
         resolved=a.resolved,
         uniqueness_key=a.uniqueness_key,
-        suggested_action=get_suggested_action(a.alert_type),
     )
 
 
