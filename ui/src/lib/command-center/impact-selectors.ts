@@ -237,7 +237,7 @@ export function getImpactForInfrastructure(
   };
 }
 
-/** Get impact for current drawer subject (flight, runway, zone, infrastructure) */
+/** Get impact for current drawer subject (flight, alert, runway, zone, infrastructure) */
 export function getImpactForSubject(
   subject: { type: string; data: unknown } | null,
   context: {
@@ -251,6 +251,24 @@ export function getImpactForSubject(
   if (!subject) return null;
   if (subject.type === "flight") {
     return getImpactForFlight(subject.data as Flight, context.flights);
+  }
+  if (subject.type === "alert") {
+    const alert = subject.data as { related_entity_type?: string; related_entity_id?: string };
+    const relType = alert?.related_entity_type;
+    const relId = alert?.related_entity_id;
+    if (relType === "flight" && relId) {
+      const flight = context.flights.find((f) => String(f.id) === relId);
+      if (flight) return getImpactForFlight(flight, context.flights);
+    }
+    if (relType === "runway" && relId) {
+      const runway = context.runways.find((r) => String(r.id) === relId);
+      if (runway) return getImpactForRunway(runway, context.runways, context.flights);
+    }
+    if (relType === "infrastructure" && relId) {
+      const asset = context.infrastructure.find((a) => String(a.id) === relId);
+      if (asset) return getImpactForInfrastructure(asset, context.flights);
+    }
+    return null;
   }
   if (subject.type === "runway") {
     return getImpactForRunway(subject.data as Runway, context.runways, context.flights);

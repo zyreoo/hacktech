@@ -157,8 +157,8 @@ export function buildTimelineEntries(
         source: "alert",
         label: a.alert_type,
         sublabel: a.message,
-        entityType: a.related_entity_type ?? undefined,
-        entityId: a.related_entity_id ?? undefined,
+        entityType: a.related_entity_type ?? "alert",
+        entityId: a.related_entity_id ?? String(a.id),
         derived: false,
       });
     }

@@ -71,7 +71,7 @@ export function IntelligenceDrawer({
   operationalImpact = null,
   className,
 }: IntelligenceDrawerProps) {
-  if (!subject) {
+  if (!subject || !("data" in subject) || subject.data == null) {
     return (
       <div
         className={cn(

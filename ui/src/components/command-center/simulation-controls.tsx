@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSimulation } from "@/context/simulation-context";
+import { patchFlightPrediction, patchRunwayStatus } from "@/lib/api/endpoints";
 import type { Flight, Runway } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Play, X, Plane, Circle, Users } from "lucide-react";
@@ -13,6 +15,7 @@ interface SimulationControlsProps {
 }
 
 export function SimulationControls({ flights, runways, className }: SimulationControlsProps) {
+  const queryClient = useQueryClient();
   const {
     overrides,
     applyFlightDelay,
@@ -30,6 +33,68 @@ export function SimulationControls({ flights, runways, className }: SimulationCo
   const [runwayId, setRunwayId] = useState<string>("");
   const [zoneId, setZoneId] = useState("T2");
   const [queueMult, setQueueMult] = useState(1.5);
+
+  const invalidateData = () => {
+    void queryClient.invalidateQueries({ queryKey: ["overview"] });
+    void queryClient.invalidateQueries({ queryKey: ["flights"] });
+    void queryClient.invalidateQueries({ queryKey: ["runways"] });
+    void queryClient.invalidateQueries({ queryKey: ["aodb-overview"] });
+  };
+
+  const applyDelayMutation = useMutation({
+    mutationFn: ({ id, delay }: { id: number; delay: number }) =>
+      patchFlightPrediction(id, { predicted_arrival_delay_min: delay }),
+    onSuccess: (_, { id, delay }) => {
+      applyFlightDelay(id, delay);
+      invalidateData();
+    },
+  });
+
+  const clearDelaysMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(
+        ids.map((id) => patchFlightPrediction(id, { predicted_arrival_delay_min: null }))
+      );
+    },
+    onSuccess: () => {
+      clearAllFlightDelays();
+      invalidateData();
+    },
+  });
+
+  const applyRunwayMutation = useMutation({
+    mutationFn: ({ id, closed }: { id: number; closed: boolean }) =>
+      patchRunwayStatus(id, { status: closed ? "closed" : "active" }),
+    onSuccess: (_, { id, closed }) => {
+      applyRunwayClosed(id, closed);
+      invalidateData();
+    },
+  });
+
+  const clearRunwaysMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map((id) => patchRunwayStatus(id, { status: "active" })));
+    },
+    onSuccess: () => {
+      clearAllRunwayClosed();
+      invalidateData();
+    },
+  });
+
+  const clearAllMutation = useMutation({
+    mutationFn: async () => {
+      const delayIds = Object.keys(overrides.flightDelays).map(Number);
+      const runwayIds = Array.from(overrides.runwayClosed);
+      await Promise.all([
+        ...delayIds.map((id) => patchFlightPrediction(id, { predicted_arrival_delay_min: null })),
+        ...runwayIds.map((id) => patchRunwayStatus(id, { status: "active" })),
+      ]);
+    },
+    onSuccess: () => {
+      clearAll();
+      invalidateData();
+    },
+  });
 
   return (
     <div className={cn("rounded-lg border border-border bg-card/80 text-xs", className)}>
@@ -78,18 +143,24 @@ export function SimulationControls({ flights, runways, className }: SimulationCo
             <span className="text-muted-foreground">min</span>
             <button
               type="button"
-              onClick={() => flightId && applyFlightDelay(Number(flightId), delayMin)}
-              className="rounded bg-primary px-2 py-1 text-primary-foreground hover:opacity-90"
+              disabled={!flightId || applyDelayMutation.isPending}
+              onClick={() =>
+                flightId && applyDelayMutation.mutate({ id: Number(flightId), delay: delayMin })
+              }
+              className="rounded bg-primary px-2 py-1 text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
-              Apply
+              {applyDelayMutation.isPending ? "…" : "Apply"}
             </button>
             {Object.keys(overrides.flightDelays).length > 0 && (
               <button
                 type="button"
-                onClick={clearAllFlightDelays}
-                className="rounded border border-border px-2 py-1 hover:bg-muted"
+                disabled={clearDelaysMutation.isPending}
+                onClick={() =>
+                  clearDelaysMutation.mutate(Object.keys(overrides.flightDelays).map(Number))
+                }
+                className="rounded border border-border px-2 py-1 hover:bg-muted disabled:opacity-50"
               >
-                Clear delays
+                {clearDelaysMutation.isPending ? "…" : "Clear delays"}
               </button>
             )}
           </div>
@@ -113,18 +184,22 @@ export function SimulationControls({ flights, runways, className }: SimulationCo
             </select>
             <button
               type="button"
-              onClick={() => runwayId && applyRunwayClosed(Number(runwayId), true)}
-              className="rounded bg-primary px-2 py-1 text-primary-foreground hover:opacity-90"
+              disabled={!runwayId || applyRunwayMutation.isPending}
+              onClick={() =>
+                runwayId && applyRunwayMutation.mutate({ id: Number(runwayId), closed: true })
+              }
+              className="rounded bg-primary px-2 py-1 text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
-              Close
+              {applyRunwayMutation.isPending ? "…" : "Close"}
             </button>
             {overrides.runwayClosed.size > 0 && (
               <button
                 type="button"
-                onClick={clearAllRunwayClosed}
-                className="rounded border border-border px-2 py-1 hover:bg-muted"
+                disabled={clearRunwaysMutation.isPending}
+                onClick={() => clearRunwaysMutation.mutate(Array.from(overrides.runwayClosed))}
+                className="rounded border border-border px-2 py-1 hover:bg-muted disabled:opacity-50"
               >
-                Reopen all
+                {clearRunwaysMutation.isPending ? "…" : "Reopen all"}
               </button>
             )}
           </div>
@@ -174,10 +249,12 @@ export function SimulationControls({ flights, runways, className }: SimulationCo
           {hasOverrides && (
             <button
               type="button"
-              onClick={clearAll}
-              className="flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-red-600 dark:text-red-400"
+              disabled={clearAllMutation.isPending}
+              onClick={() => clearAllMutation.mutate()}
+              className="flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-1 text-red-600 dark:text-red-400 disabled:opacity-50"
             >
-              <X className="h-3 w-3" /> Clear all simulation
+              <X className="h-3 w-3" />
+              {clearAllMutation.isPending ? "…" : "Clear all simulation"}
             </button>
           )}
         </div>

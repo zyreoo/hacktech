@@ -6,25 +6,8 @@
 import { useMemo } from "react";
 import { useFlights, useRunways, useOverview, usePassengerFlow } from "@/lib/hooks/queries";
 import { useSimulationOptional } from "@/context/simulation-context";
-import type { Flight, Runway, PassengerFlow } from "@/types/api";
+import type { PassengerFlow } from "@/types/api";
 import type { OverviewResponse } from "@/types/api";
-
-function mergeFlights(flights: Flight[], flightDelays: Record<number, number>): Flight[] {
-  if (Object.keys(flightDelays).length === 0) return flights;
-  return flights.map((f) => {
-    const override = flightDelays[f.id];
-    if (override == null) return f;
-    return { ...f, predicted_arrival_delay_min: override };
-  });
-}
-
-function mergeRunways(runways: Runway[], runwayClosed: Set<number>): Runway[] {
-  if (runwayClosed.size === 0) return runways;
-  return runways.map((r) => {
-    if (!runwayClosed.has(r.id)) return r;
-    return { ...r, status: "closed" as const };
-  });
-}
 
 function mergePassengerFlows(
   flows: PassengerFlow[],
@@ -44,28 +27,14 @@ function mergePassengerFlows(
   });
 }
 
-/** Flights with optional simulation overrides (delay minutes) applied. */
+/** Flights: from API only (delay/runway simulation is persisted to DB). */
 export function useFlightsWithSimulation(params?: { skip?: number; limit?: number }) {
-  const query = useFlights(params);
-  const sim = useSimulationOptional();
-  const data = useMemo(() => {
-    const raw = query.data ?? [];
-    if (!sim?.overrides) return raw;
-    return mergeFlights(raw, sim.overrides.flightDelays);
-  }, [query.data, sim?.overrides?.flightDelays]);
-  return { ...query, data };
+  return useFlights(params);
 }
 
-/** Runways with optional simulation overrides (closed) applied. */
+/** Runways: from API only (status simulation is persisted to DB). */
 export function useRunwaysWithSimulation() {
-  const query = useRunways();
-  const sim = useSimulationOptional();
-  const data = useMemo(() => {
-    const raw = query.data ?? [];
-    if (!sim?.overrides) return raw;
-    return mergeRunways(raw, sim.overrides.runwayClosed);
-  }, [query.data, sim?.overrides?.runwayClosed]);
-  return { ...query, data };
+  return useRunways();
 }
 
 /** Passenger flows with optional queue load multipliers applied. */
@@ -80,25 +49,19 @@ export function usePassengerFlowWithSimulation(params?: { limit?: number }) {
   return { ...query, data };
 }
 
-/** Overview with simulation overrides merged into current_flights, runway_conditions, passenger_queues. */
+/** Overview: flight/runway from API; queue load multiplier applied in frontend only. */
 export function useOverviewWithSimulation() {
   const query = useOverview();
   const sim = useSimulationOptional();
   const data = useMemo((): OverviewResponse | undefined => {
     const raw = query.data;
     if (!raw) return raw;
-    if (!sim?.overrides) return raw;
+    if (!sim?.overrides?.queueLoadMultiplier || Object.keys(sim.overrides.queueLoadMultiplier).length === 0)
+      return raw;
     return {
       ...raw,
-      current_flights: mergeFlights(raw.current_flights, sim.overrides.flightDelays),
-      runway_conditions: mergeRunways(raw.runway_conditions, sim.overrides.runwayClosed),
       passenger_queues: mergePassengerFlows(raw.passenger_queues, sim.overrides.queueLoadMultiplier),
     };
-  }, [
-    query.data,
-    sim?.overrides?.flightDelays,
-    sim?.overrides?.runwayClosed,
-    sim?.overrides?.queueLoadMultiplier,
-  ]);
+  }, [query.data, sim?.overrides?.queueLoadMultiplier]);
   return { ...query, data };
 }

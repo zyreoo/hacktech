@@ -12,7 +12,6 @@ import { AIInsightsPanel } from "@/components/command-center/ai-insights-panel";
 import { CardLoadingState, SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import {
-  useOverview,
   useAlerts,
   usePassengerFlow,
   useInfrastructure,
@@ -85,6 +84,27 @@ export default function CommandCenterPage() {
   const passengerFlows = passengerFlowQuery.data ?? overview.data?.passenger_queues ?? [];
   const infrastructure = infrastructureQuery.data ?? overview.data?.infrastructure_status ?? [];
 
+  // Keep drawer subject in sync with live data (refetch/simulation)
+  useEffect(() => {
+    if (!drawerSubject || !("data" in drawerSubject) || !drawerSubject.data) return;
+    const sub = drawerSubject;
+    const id = "id" in sub.data ? String((sub.data as { id: number }).id) : "";
+    if (sub.type === "flight") {
+      const next = flights.find((f) => String(f.id) === id);
+      if (next && next !== sub.data) setDrawerSubject({ type: "flight", data: next });
+    } else if (sub.type === "alert") {
+      const next = alerts.find((a) => String(a.id) === id);
+      if (next && next !== sub.data) setDrawerSubject({ type: "alert", data: next });
+    } else if (sub.type === "runway") {
+      const next = runways.find((r) => String(r.id) === id);
+      if (next && next !== sub.data) setDrawerSubject({ type: "runway", data: next });
+    } else if (sub.type === "infrastructure") {
+      const next = infrastructure.find((a) => String(a.id) === id);
+      if (next && next !== sub.data) setDrawerSubject({ type: "infrastructure", data: next });
+    }
+  }, [drawerSubject, flights, alerts, runways, infrastructure]);
+
+  const queueHotspots = useMemo(() => getQueueHotspots(passengerFlows), [passengerFlows]);
   const operationalImpact = useMemo(
     () =>
       getImpactForSubject(drawerSubject, {
@@ -92,9 +112,9 @@ export default function CommandCenterPage() {
         runways,
         passengerFlows,
         infrastructure,
-        queueHotspots: getQueueHotspots(passengerFlows),
+        queueHotspots,
       }),
-    [drawerSubject, flights, runways, passengerFlows, infrastructure]
+    [drawerSubject, flights, runways, passengerFlows, infrastructure, queueHotspots]
   );
   const impactConnectionLines = useMemo(
     () => getImpactConnectionLines(operationalImpact, flights, runways, infrastructure),
@@ -176,21 +196,38 @@ export default function CommandCenterPage() {
 
   const handleFocusEntity = useCallback(
     (type: string, id: string) => {
-      setSelectedEntity({ type, id });
       if (type === "flight") {
         const flight = flights.find((f) => String(f.id) === id);
-        if (flight) setDrawerSubject({ type: "flight", data: flight });
+        if (flight) {
+          setSelectedEntity({ type: "flight", id });
+          setDrawerSubject({ type: "flight", data: flight });
+          setSelectedAlertId(null);
+        }
       } else if (type === "alert") {
         const alert = alerts.find((a) => String(a.id) === id);
-        if (alert) setDrawerSubject({ type: "alert", data: alert });
+        if (alert) {
+          setSelectedAlertId(alert.id);
+          setSelectedEntity({ type: "alert", id });
+          setDrawerSubject({ type: "alert", data: alert });
+        }
       } else if (type === "runway") {
         const runway = runways.find((r) => String(r.id) === id);
-        if (runway) setDrawerSubject({ type: "runway", data: runway });
+        if (runway) {
+          setSelectedEntity({ type: "runway", id });
+          setDrawerSubject({ type: "runway", data: runway });
+          setSelectedAlertId(null);
+        }
       } else if (type === "infrastructure") {
         const asset = infrastructure.find((a) => String(a.id) === id);
-        if (asset) setDrawerSubject({ type: "infrastructure", data: asset });
+        if (asset) {
+          setSelectedEntity({ type: "infrastructure", id });
+          setDrawerSubject({ type: "infrastructure", data: asset });
+          setSelectedAlertId(null);
+        }
       } else if (type === "zone") {
+        setSelectedEntity({ type: "zone", id });
         setDrawerSubject(null);
+        setSelectedAlertId(null);
       }
     },
     [flights, alerts, runways, infrastructure]
@@ -311,7 +348,17 @@ export default function CommandCenterPage() {
                   <OperationalImpactPanel impact={operationalImpact ?? null} />
                 </TabsContent>
                 <TabsContent value="insights" className="mt-2 max-h-[200px] overflow-auto">
-                  <AIInsightsPanel overview={overview.data} onSelectAlert={() => {}} />
+                  <AIInsightsPanel
+                  overview={overview.data}
+                  onSelectAlert={
+                    alerts.length > 0
+                      ? () => {
+                          const critical = alerts.find((a) => a.severity === "critical");
+                          if (critical) handleFocusEntity("alert", String(critical.id));
+                        }
+                      : undefined
+                  }
+                />
                 </TabsContent>
                 <TabsContent value="self-healing" className="mt-2 max-h-[200px] overflow-auto">
                   <SelfHealingCenter

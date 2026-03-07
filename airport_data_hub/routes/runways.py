@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..crud import get_runways, get_runway_by_id, update_runway_hazard
-from ..schemas import RunwayResponse, RunwayHazardUpdate
+from ..crud import get_runways, get_runway_by_id, update_runway_hazard, update_runway_status
+from ..schemas import RunwayResponse, RunwayHazardUpdate, RunwayStatusUpdate
 
 router = APIRouter(prefix="/runways", tags=["runways"])
 
@@ -23,6 +23,15 @@ def get_runway(id: int, db: Session = Depends(get_db)):
 @router.patch("/{id}/hazard", response_model=RunwayResponse)
 def patch_runway_hazard(id: int, payload: RunwayHazardUpdate, db: Session = Depends(get_db)):
     r = update_runway_hazard(db, id, payload)
+    if not r:
+        raise HTTPException(status_code=404, detail="Runway not found")
+    return r
+
+
+@router.patch("/{id}/status", response_model=RunwayResponse)
+def patch_runway_status(id: int, payload: RunwayStatusUpdate, db: Session = Depends(get_db)):
+    """Simulation / ops: set runway status (active, closed, maintenance)."""
+    r = update_runway_status(db, id, payload)
     if not r:
         raise HTTPException(status_code=404, detail="Runway not found")
     return r

@@ -51,12 +51,7 @@ export function AlertsPanel({
               <button
                 key={alert.id}
                 type="button"
-                onClick={() => {
-                  onSelectAlert(alert);
-                  if (alert.related_entity_type && alert.related_entity_id) {
-                    onFocusEntity?.(alert.related_entity_type, alert.related_entity_id);
-                  }
-                }}
+                onClick={() => onSelectAlert(alert)}
                 className={cn(
                   "w-full rounded-lg border px-3 py-2 text-left transition-colors",
                   selectedAlertId === alert.id

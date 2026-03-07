@@ -1,4 +1,4 @@
-import { get, post } from "./client";
+import { get, post, patch } from "./client";
 import type {
   OverviewResponse,
   Flight,
@@ -81,3 +81,15 @@ export const fetchPredictionsForFlight = (flightId: number) =>
 
 export const runPrediction = (body: PredictRequest) =>
   post<PredictResponse, PredictRequest>("/predict", body);
+
+// ─── Simulation (persist to DB) ─────────────────────────────────────────────
+
+/** Set or clear predicted delay for a flight (simulation / ops). */
+export const patchFlightPrediction = (
+  flightId: number,
+  body: { predicted_arrival_delay_min?: number | null }
+) => patch<Flight>(`/flights/${flightId}/prediction`, body);
+
+/** Set runway status (simulation / ops): active, closed, maintenance. */
+export const patchRunwayStatus = (runwayId: number, body: { status: string }) =>
+  patch<Runway>(`/runways/${runwayId}/status`, body);

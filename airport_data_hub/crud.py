@@ -24,6 +24,7 @@ from .schemas import (
     FlightPredictionUpdate,
     FlightUpdateCreate,
     RunwayHazardUpdate,
+    RunwayStatusUpdate,
     ResourceStatusUpdate,
     AlertResolveUpdate,
     InfrastructureStatusUpdate,
@@ -54,18 +55,13 @@ def update_flight_status(db: Session, id: int, payload: FlightStatusUpdate) -> O
 
 
 def update_flight_prediction(db: Session, id: int, payload: FlightPredictionUpdate) -> Optional[Flight]:
-    """Update flight with prediction results (called by arrival delay prediction service)."""
+    """Update flight with prediction results (prediction service or simulation/ops). Only updates fields present in payload (null clears delay)."""
     flight = get_flight_by_id(db, id)
     if not flight:
         return None
-    if payload.predicted_eta is not None:
-        flight.predicted_eta = payload.predicted_eta
-    if payload.predicted_arrival_delay_min is not None:
-        flight.predicted_arrival_delay_min = payload.predicted_arrival_delay_min
-    if payload.prediction_confidence is not None:
-        flight.prediction_confidence = payload.prediction_confidence
-    if payload.prediction_model_version is not None:
-        flight.prediction_model_version = payload.prediction_model_version
+    updates = payload.model_dump(exclude_unset=True)
+    for key, value in updates.items():
+        setattr(flight, key, value)
     flight.last_prediction_at = datetime.utcnow()
     db.commit()
     db.refresh(flight)
@@ -200,6 +196,17 @@ def update_runway_hazard(db: Session, id: int, payload: RunwayHazardUpdate) -> O
         return None
     runway.hazard_detected = payload.hazard_detected
     runway.hazard_type = payload.hazard_type
+    db.commit()
+    db.refresh(runway)
+    return runway
+
+
+def update_runway_status(db: Session, id: int, payload: RunwayStatusUpdate) -> Optional[Runway]:
+    """Simulation / ops: set runway status (active, closed, maintenance)."""
+    runway = get_runway_by_id(db, id)
+    if not runway:
+        return None
+    runway.status = payload.status
     db.commit()
     db.refresh(runway)
     return runway
