@@ -19,6 +19,9 @@ from .services.synthetic import start_synthetic_feeder, stop_synthetic_feeder
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Seed with demo data when DB is empty so the dashboard and synthetic generator have something to show.
+    from .seed import seed
+    seed()
     model_path = Path(__file__).parent / "models" / "delay_model.joblib"
     inference.load_model(model_path)
     # Start synthetic data generator in the background so the dashboard always feels live.

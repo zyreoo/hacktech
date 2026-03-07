@@ -145,7 +145,7 @@ def _tick_once(db: Session) -> None:
                     flight_id=flight.id,
                     reported_status=flight.status,
                     reported_at=now,
-                    source="synthetic_generator",
+                    source_name="synthetic_generator",
                 )
                 db.add(update)
 
@@ -162,7 +162,7 @@ def _tick_once(db: Session) -> None:
                     flight_id=flight.id,
                     reported_gate=flight.gate,
                     reported_at=now,
-                    source="synthetic_generator",
+                    source_name="synthetic_generator",
                 )
                 db.add(update)
 

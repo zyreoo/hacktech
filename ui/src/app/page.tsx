@@ -15,7 +15,13 @@ import { Activity } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverview();
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setLastUpdate((prev) => prev ?? new Date());
+  }, []);
 
   useEffect(() => {
     if (dataUpdatedAt) {
@@ -33,7 +39,9 @@ export default function DashboardPage() {
             <div className="flex items-center gap-1 text-xs text-emerald-600">
               <Activity className="h-3 w-3 animate-pulse" />
               <span>Live</span>
-              <span className="text-slate-400">· Updated {lastUpdate.toLocaleTimeString()}</span>
+              {mounted && lastUpdate && (
+                <span className="text-slate-400">· Updated {lastUpdate.toLocaleTimeString()}</span>
+              )}
             </div>
           </div>
         }

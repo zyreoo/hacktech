@@ -7,14 +7,18 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Use a dedicated hub DB so existing airport.db and other modules stay independent
+# Use a dedicated hub DB so existing airport.db and other modules stay independent.
+# Absolute path so background thread and request handlers resolve the same file.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.environ.get("AIRPORT_HUB_DB", os.path.join(BASE_DIR, "airport_hub.db"))
+DB_PATH = os.path.abspath(os.environ.get("AIRPORT_HUB_DB", os.path.join(BASE_DIR, "airport_hub.db")))
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"check_same_thread": False},
+    connect_args={
+        "check_same_thread": False,
+        "timeout": 15,  # Wait up to 15s for lock (synthetic thread + overview can write concurrently)
+    },
     echo=False,  # set True for SQL logging during dev
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
