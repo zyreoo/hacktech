@@ -19,10 +19,15 @@ import {
 } from "@/lib/api/endpoints";
 import type { PredictRequest } from "@/types/api";
 
-const STALE = 30_000; // 30 s
+const STALE = 5_000; // 5 s
 
 export const useOverview = () =>
-  useQuery({ queryKey: ["overview"], queryFn: fetchOverview, staleTime: STALE, refetchInterval: 60_000 });
+  useQuery({
+    queryKey: ["overview"],
+    queryFn: fetchOverview,
+    staleTime: STALE,
+    refetchInterval: 5_000,
+  });
 
 export const useAodbOverview = () =>
   useQuery({ queryKey: ["aodb-overview"], queryFn: fetchAodbOverview, staleTime: STALE });
@@ -37,7 +42,12 @@ export const useFlightUpdates = (flightId: number) =>
   useQuery({ queryKey: ["flight-updates", flightId], queryFn: () => fetchFlightUpdates(flightId), staleTime: STALE });
 
 export const useAlerts = (params?: { resolved?: boolean; limit?: number }) =>
-  useQuery({ queryKey: ["alerts", params], queryFn: () => fetchAlerts(params), staleTime: STALE, refetchInterval: 30_000 });
+  useQuery({
+    queryKey: ["alerts", params],
+    queryFn: () => fetchAlerts(params),
+    staleTime: STALE,
+    refetchInterval: 5_000,
+  });
 
 export const useRunways = () =>
   useQuery({ queryKey: ["runways"], queryFn: fetchRunways, staleTime: STALE });
