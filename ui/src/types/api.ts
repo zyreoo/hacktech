@@ -167,6 +167,8 @@ export interface Alert {
   created_at: string;
   resolved: boolean;
   uniqueness_key: string | null;
+  /** Operator-friendly suggested action (suggest only; system does not execute). */
+  suggested_action: string | null;
 }
 
 // ─── Infrastructure ───────────────────────────────────────────────────────────

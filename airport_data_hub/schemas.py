@@ -3,7 +3,7 @@ Airport Data Hub - Pydantic schemas for API request/response.
 """
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 # ----- Flights -----
@@ -187,6 +187,21 @@ class ResourceStatusUpdate(BaseModel):
 
 
 # ----- Alerts -----
+# Operator-friendly suggested actions by alert_type (suggest only; system does not execute).
+ALERT_SUGGESTED_ACTIONS: dict[str, str] = {
+    "queue": "Deploy extra security lanes or redirect passengers to reduce queue depth; monitor wait times.",
+    "runway_hazard": "Inspect runway and clear hazard; consider temporary closure until cleared.",
+    "grip": "Schedule runway surface treatment or restrict operations until grip improves.",
+    "security": "Verify asset integrity and secure area; escalate to security if tamper confirmed.",
+    "gate_conflict": "Reassign gate for one of the flights or adjust schedule to resolve overlap.",
+}
+
+
+def get_suggested_action(alert_type: str) -> Optional[str]:
+    """Return operator-friendly suggested action for an alert type, or None if unknown."""
+    return ALERT_SUGGESTED_ACTIONS.get(alert_type)
+
+
 class AlertBase(BaseModel):
     alert_type: str
     severity: str = "info"
@@ -201,7 +216,14 @@ class AlertResponse(AlertBase):
     created_at: datetime
     resolved: bool = False
     uniqueness_key: Optional[str] = None
+    suggested_action: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def set_suggested_action_from_type(self) -> "AlertResponse":
+        if self.suggested_action is None:
+            self.suggested_action = get_suggested_action(self.alert_type)
+        return self
 
 
 class AlertResolveUpdate(BaseModel):

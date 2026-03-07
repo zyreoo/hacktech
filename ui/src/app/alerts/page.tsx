@@ -21,6 +21,19 @@ const SEVERITY_ROWS: Record<string, string> = {
   info:     "",
 };
 
+/** Fallback suggested actions when API does not return suggested_action (e.g. cache). */
+const SUGGESTED_ACTION_BY_TYPE: Record<string, string> = {
+  queue: "Deploy extra security lanes or redirect passengers to reduce queue depth; monitor wait times.",
+  runway_hazard: "Inspect runway and clear hazard; consider temporary closure until cleared.",
+  grip: "Schedule runway surface treatment or restrict operations until grip improves.",
+  security: "Verify asset integrity and secure area; escalate to security if tamper confirmed.",
+  gate_conflict: "Reassign gate for one of the flights or adjust schedule to resolve overlap.",
+};
+
+function getSuggestedAction(alert: { alert_type: string; suggested_action?: string | null }): string | null {
+  return alert.suggested_action ?? SUGGESTED_ACTION_BY_TYPE[alert.alert_type] ?? null;
+}
+
 export default function AlertsPage() {
   const [showResolved, setShowResolved] = useState(false);
   const [filterSeverity, setFilterSeverity] = useState("all");
@@ -100,10 +113,10 @@ export default function AlertsPage() {
                 <TableRow>
                   <TableHead>Severity</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead className="max-w-sm">Message</TableHead>
+                  <TableHead className="min-w-[200px]">Message</TableHead>
+                  <TableHead className="min-w-[220px]">Suggested action</TableHead>
                   <TableHead>Entity</TableHead>
                   <TableHead>Source</TableHead>
-                  <TableHead>Key</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>State</TableHead>
                 </TableRow>
@@ -125,8 +138,20 @@ export default function AlertsPage() {
                       />
                     </TableCell>
                     <TableCell className="font-mono text-xs">{alert.alert_type}</TableCell>
-                    <TableCell className="max-w-sm text-sm text-slate-700 dark:text-slate-300">
+                    <TableCell className="min-w-[200px] text-sm text-slate-700 dark:text-slate-300">
                       {alert.message}
+                    </TableCell>
+                    <TableCell className="min-w-[220px]">
+                      {(() => {
+                        const action = getSuggestedAction(alert);
+                        return action ? (
+                          <span className="block rounded-md bg-slate-100 px-2 py-1.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {action}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-xs text-slate-500">
                       {alert.related_entity_type && (
@@ -137,9 +162,6 @@ export default function AlertsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-xs text-slate-500">{alert.source_module ?? "—"}</TableCell>
-                    <TableCell className="max-w-[140px] truncate font-mono text-xs text-slate-400">
-                      {alert.uniqueness_key ?? "—"}
-                    </TableCell>
                     <TableCell className="text-xs text-slate-500">
                       {formatRelativeTime(alert.created_at)}
                     </TableCell>

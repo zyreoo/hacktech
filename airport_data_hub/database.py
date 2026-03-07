@@ -112,6 +112,36 @@ def _migrate_flights_reconciled_eta():
         pass
 
 
+def _migrate_queue_alert_messages():
+    """
+    One-time: update existing queue alerts so message shows flight code instead of flight_id.
+    e.g. '... (flight_id=4)' -> '... for BA301'
+    """
+    import re
+    from .models import Alert
+    from .crud import get_flight_by_id
+
+    db = SessionLocal()
+    try:
+        alerts = db.query(Alert).filter(
+            Alert.alert_type == "queue",
+            Alert.message.like("%flight_id=%"),
+        ).all()
+        for a in alerts:
+            match = re.search(r"\(flight_id=(\d+)\)", a.message)
+            if not match:
+                continue
+            flight_id = int(match.group(1))
+            flight = get_flight_by_id(db, flight_id)
+            if flight:
+                a.message = re.sub(r"\(flight_id=\d+\)", f"for {flight.flight_code}", a.message)
+        db.commit()
+    except Exception:
+        db.rollback()
+    finally:
+        db.close()
+
+
 def init_db():
     """Create all tables. Called at app startup or via seed."""
     Base.metadata.create_all(bind=engine)
@@ -120,3 +150,4 @@ def init_db():
     _migrate_alerts_uniqueness_key()
     _backfill_alerts_uniqueness_key()
     _migrate_flights_reconciled_eta()
+    _migrate_queue_alert_messages()
