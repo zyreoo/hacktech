@@ -38,7 +38,11 @@ export function AlertBanner({ alert, compact = false }: AlertBannerProps) {
   const Icon = cfg.icon;
 
   return (
-    <div className={cn("flex items-start gap-3 rounded-lg border p-3", cfg.bg)}>
+    <div className={cn(
+      "flex items-start gap-3 rounded-lg border p-3",
+      cfg.bg,
+      alert.severity === "critical" && "animate-pulse-critical border-l-danger"
+    )}>
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", cfg.iconColor)} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">

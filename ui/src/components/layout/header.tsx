@@ -1,7 +1,8 @@
 "use client";
 
 import { Bell, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/components/modern-ui/button";
+import { ThemeToggle } from "@/components/shared/theme-toggle";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -31,26 +32,27 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6 dark:border-slate-800 dark:bg-slate-950">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b bg-card px-6">
       <div>
-        <h1 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h1>
+        <h1 className="text-base font-semibold text-foreground">{title}</h1>
         {subtitle && (
-          <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
         )}
       </div>
       <div className="flex items-center gap-4">
+        <ThemeToggle />
         {now && (
-          <div className="hidden text-xs font-mono text-slate-500 dark:text-slate-400 sm:block">
+          <div className="hidden text-xs font-mono text-muted-foreground sm:block">
             {now.toLocaleTimeString()}
           </div>
         )}
         <Button variant="ghost" size="icon" onClick={handleRefresh} title="Refresh all data">
-          <RefreshCw className={cn("h-4 w-4 text-slate-500", spinning && "animate-spin")} />
+          <RefreshCw className={cn("h-4 w-4 text-muted-foreground", spinning && "animate-spin")} />
         </Button>
         <Button variant="ghost" size="icon" title="Alerts">
-          <Bell className="h-4 w-4 text-slate-500" />
+          <Bell className="h-4 w-4 text-muted-foreground" />
         </Button>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-bold text-secondary-foreground">
           OP
         </div>
       </div>
