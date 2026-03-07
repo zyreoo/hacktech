@@ -47,75 +47,127 @@ def _tick_once(db: Session) -> None:
     """Single synthetic update tick."""
     now = datetime.utcnow()
 
-    # 1) Move passenger flows in real time for a handful of flights
+    # 1) Move passenger flows in real time for more flights with dramatic changes
     flights = _select_active_flights(db)
     if flights:
-        sample_size = min(len(flights), 5)
+        sample_size = min(len(flights), 8)  # Increased from 5 to 8
         for flight in random.sample(flights, sample_size):
-            # Base crowds around security; occasionally spike to trigger alerts
-            base_security = random.randint(20, 90)
-            if random.random() < 0.25:
-                base_security = random.randint(90, 140)
+            # More dramatic passenger count variations
+            base_security = random.randint(10, 250)  # Even wider range for more visibility
+            # More frequent spikes to trigger alerts (50% chance vs 25%)
+            if random.random() < 0.5:
+                base_security = random.randint(200, 350)  # Much higher spikes
 
             pf = PassengerFlow(
                 flight_id=flight.id,
-                check_in_count=random.randint(30, 160),
+                check_in_count=random.randint(10, 400),  # Much wider range
                 security_queue_count=base_security,
-                boarding_count=random.randint(0, 120),
-                predicted_queue_time=random.uniform(4.0, 22.0),
-                terminal_zone="T5" if "BA" in flight.flight_code else "T2",
+                boarding_count=random.randint(0, 300),  # Higher max
+                predicted_queue_time=random.uniform(1.0, 45.0),  # Wider time range
+                terminal_zone=random.choice(["T1", "T2", "T3", "T4", "T5"]),  # More variety
                 timestamp=now,
             )
             db.add(pf)
 
-    # 2) Slightly perturb runway grip / hazards
+    # 1.5) Also update some existing passenger flows to make immediate changes visible
+    existing_flows = db.query(PassengerFlow).order_by(PassengerFlow.timestamp.desc()).limit(20).all()
+    if existing_flows:
+        flows_to_update = random.sample(existing_flows, min(5, len(existing_flows)))
+        for flow in flows_to_update:
+            # Dramatically change existing values for immediate visibility
+            flow.security_queue_count = random.randint(50, 300)
+            flow.check_in_count = random.randint(100, 500)
+            flow.boarding_count = random.randint(50, 250)
+            flow.predicted_queue_time = random.uniform(5.0, 40.0)
+            flow.timestamp = now  # Update timestamp to bring to top
+
+    # 2) More dramatic runway changes
     runways = db.query(Runway).all()
     for r in runways:
         if r.grip_score is None:
-            r.grip_score = random.uniform(0.5, 0.95)
-        # Small random walk
-        if random.random() < 0.6:
-            r.grip_score = _clamp(r.grip_score + random.uniform(-0.06, 0.06), 0.2, 1.0)
+            r.grip_score = random.uniform(0.4, 0.95)
+        # Larger random walk changes
+        if random.random() < 0.8:  # Increased from 0.6
+            r.grip_score = _clamp(r.grip_score + random.uniform(-0.12, 0.12), 0.1, 1.0)
 
-        # Occasionally flip hazard flag on one runway
-        if random.random() < 0.1:
+        # More frequent hazard changes (20% chance vs 10%)
+        if random.random() < 0.2:
             r.hazard_detected = not r.hazard_detected
             if r.hazard_detected:
-                r.hazard_type = random.choice(
-                    ["standing water", "rubber build-up", "FOD", "ice patches"]
-                )
+                r.hazard_type = random.choice([
+                    "standing water", "rubber build-up", "FOD", "ice patches", 
+                    "debris", "wildlife", "maintenance vehicle"
+                ])
             else:
                 r.hazard_type = None
         r.last_inspection_time = now
 
-    # 3) Nudge infrastructure health and tamper flags
+    # 3) More dynamic infrastructure changes
     assets = db.query(InfrastructureAsset).all()
     for asset in assets:
-        # Random walk for network health
+        # More dramatic network health changes
         if asset.network_health is None:
-            asset.network_health = random.uniform(0.6, 1.0)
-        if random.random() < 0.7:
+            asset.network_health = random.uniform(0.5, 1.0)
+        if random.random() < 0.85:  # Increased from 0.7
             asset.network_health = _clamp(
-                asset.network_health + random.uniform(-0.08, 0.08),
-                0.2,
+                asset.network_health + random.uniform(-0.15, 0.15),
+                0.1,
                 1.0,
             )
 
-        # Occasionally toggle tamper / degraded status
-        if random.random() < 0.1:
-            tamper = random.random() < 0.3
+        # More frequent status changes (20% chance vs 10%)
+        if random.random() < 0.2:
+            tamper = random.random() < 0.4  # Slightly higher tamper chance
             asset.tamper_detected = tamper
             if tamper:
-                asset.status = random.choice(["degraded", "offline"])
+                asset.status = random.choice(["degraded", "offline", "maintenance"])
             else:
-                # Allow some assets to stay degraded without tamper
-                if asset.status in ("degraded", "offline") and random.random() < 0.5:
+                # More dynamic status recovery
+                if asset.status in ("degraded", "offline", "maintenance") and random.random() < 0.7:
                     asset.status = "operational"
 
         asset.last_updated = now
 
+    # 4) NEW: Add flight status changes for more visibility
+    if flights and random.random() < 0.3:  # 30% chance to update flight statuses
+        sample_flights = random.sample(flights, min(3, len(flights)))
+        for flight in sample_flights:
+            # Randomly update flight status
+            if random.random() < 0.5:
+                old_status = flight.status
+                flight.status = random.choice([
+                    "scheduled", "boarding", "departed", "in_air", 
+                    "landed", "taxiing", "at_gate", "delayed"
+                ])
+                # Create a flight update for status change
+                from ..models import FlightUpdate
+                update = FlightUpdate(
+                    flight_id=flight.id,
+                    reported_status=flight.status,
+                    reported_at=now,
+                    source="synthetic_generator",
+                )
+                db.add(update)
 
-def _generator_loop(stop_event: threading.Event, interval_seconds: float = 5.0) -> None:
+    # 5) NEW: Add gate changes for more dynamic feel
+    if flights and random.random() < 0.2:  # 20% chance for gate changes
+        sample_flights = random.sample(flights, min(2, len(flights)))
+        for flight in sample_flights:
+            if random.random() < 0.6:
+                old_gate = flight.gate
+                flight.gate = random.choice(["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "D1"])
+                # Create flight update for gate change
+                from ..models import FlightUpdate
+                update = FlightUpdate(
+                    flight_id=flight.id,
+                    reported_gate=flight.gate,
+                    reported_at=now,
+                    source="synthetic_generator",
+                )
+                db.add(update)
+
+
+def _generator_loop(stop_event: threading.Event, interval_seconds: float = 1.5) -> None:
     """Background loop that periodically mutates the DB."""
     while not stop_event.is_set():
         db = SessionLocal()
