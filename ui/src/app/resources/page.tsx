@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useResources, useResourceIssues, useUpdateResourceStatus, useReassignFlight } from "@/lib/hooks/queries";
+import { getApiErrorMessage } from "@/lib/api/client";
 import { resourceStatusVariant } from "@/lib/utils";
-import { Layers, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Layers, AlertTriangle, ShieldCheck, DoorOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const issueSeverityStyles: Record<string, string> = {
@@ -129,7 +130,7 @@ export default function ResourcesPage() {
                               setFixError(null);
                               updateResource.mutate(
                                 { id: issue.resource_id!, status: "available", assigned_to: null },
-                                { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to release gate") }
+                                { onSuccess: () => setFixError(null), onError: (err) => setFixError(getApiErrorMessage(err) || "Failed to release gate") }
                               );
                             }}
                           >
@@ -148,7 +149,7 @@ export default function ResourcesPage() {
                               setFixError(null);
                               reassignFlightMutation.mutate(
                                 { id: issue.flight_id!, gate: issue.resource_name, reconciled_gate: issue.resource_name },
-                                { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to align flight") }
+                                { onSuccess: () => setFixError(null), onError: (err) => setFixError(getApiErrorMessage(err) || "Failed to align flight") }
                               );
                             }}
                           >
@@ -218,7 +219,15 @@ export default function ResourcesPage() {
                     <TableCell className="font-semibold text-slate-800 dark:text-slate-100">{r.resource_name}</TableCell>
                     <TableCell className="text-sm capitalize text-slate-600 dark:text-slate-300">{r.resource_type}</TableCell>
                     <TableCell>
-                      <StatusBadge label={r.status} variant={resourceStatusVariant(r.status)} dot />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge label={r.status} variant={resourceStatusVariant(r.status)} dot />
+                        {r.resource_type === "gate" && r.status === "available" && (
+                          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
+                            <DoorOpen className="h-3 w-3" aria-hidden />
+                            Opened
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="font-mono text-sm text-slate-600 dark:text-slate-300">
                       {r.assigned_to ?? <span className="text-slate-400">—</span>}

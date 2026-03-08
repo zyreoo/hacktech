@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Plane,
@@ -36,11 +37,15 @@ export function Sidebar() {
     <aside className="flex h-full w-64 flex-col border-r bg-card">
       {/* Logo / wordmark */}
       <div className="flex h-16 items-center gap-3 border-b px-6">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
-          <Plane className="h-4 w-4" />
-        </span>
+        <Image
+          src="/logo.svg"
+          alt="SkySentinel"
+          width={32}
+          height={32}
+          className="h-8 w-8 shrink-0 rounded-lg object-contain"
+        />
         <div>
-          <p className="text-sm font-bold leading-none">AirHub</p>
+          <p className="text-sm font-bold leading-none">SkySentinel</p>
           <p className="text-[11px] text-muted-foreground">Operations Platform</p>
         </div>
       </div>
@@ -75,7 +80,7 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="border-t px-5 py-4">
-        <p className="text-[11px] text-muted-foreground">Airport Data Hub v0.1</p>
+        <p className="text-[11px] text-muted-foreground">SkySentinel v0.1</p>
       </div>
     </aside>
   );

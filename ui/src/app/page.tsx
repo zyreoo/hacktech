@@ -10,6 +10,7 @@ import { InfrastructureSummary } from "@/components/dashboard/infrastructure-sum
 import { CardLoadingState, SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { useOverview, useResolveAlert } from "@/lib/hooks/queries";
+import { getApiErrorMessage } from "@/lib/api/client";
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
@@ -17,14 +18,21 @@ export default function DashboardPage() {
   const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverview();
   const resolveAlertMutation = useResolveAlert();
   const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
+  const [resolveError, setResolveError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
 
   const handleResolveAlert = (alertId: number) => {
+    if (typeof alertId !== "number" || !Number.isFinite(alertId)) return;
+    setResolveError(null);
     setResolvingAlertId(alertId);
     resolveAlertMutation.mutate(
       { id: alertId, resolved: true },
-      { onSettled: () => setResolvingAlertId(null) }
+      {
+        onSuccess: () => setResolveError(null),
+        onError: (err) => setResolveError(getApiErrorMessage(err)),
+        onSettled: () => setResolvingAlertId(null),
+      }
     );
   };
 
@@ -75,13 +83,18 @@ export default function DashboardPage() {
             <KpiStrip overview={overview} />
 
             {/* Alerts + Flights */}
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="lg:col-span-2">
-                <FlightsSummary flights={overview.current_flights} />
+            <div className="grid gap-6 lg:grid-cols-3 lg:items-stretch">
+              <div className="lg:col-span-2 min-h-0">
+                <FlightsSummary flights={overview.current_flights ?? []} />
               </div>
-              <div>
+              <div className="min-h-[280px] lg:min-h-0 lg:flex lg:flex-col">
+                {resolveError && (
+                  <p className="mb-2 text-sm text-red-600 dark:text-red-400" role="alert">
+                    {resolveError}
+                  </p>
+                )}
                 <ActiveAlertsCard
-                  alerts={overview.active_alerts}
+                  alerts={overview.active_alerts ?? []}
                   onResolve={handleResolveAlert}
                   resolvingId={resolvingAlertId}
                 />
@@ -90,12 +103,12 @@ export default function DashboardPage() {
 
             {/* Runways + Passenger Flow */}
             <div className="grid gap-6 lg:grid-cols-2">
-              <RunwaySummary runways={overview.runway_conditions} />
-              <PassengerQueueSummary flows={overview.passenger_queues} />
+              <RunwaySummary runways={overview.runway_conditions ?? []} />
+              <PassengerQueueSummary flows={overview.passenger_queues ?? []} />
             </div>
 
             {/* Infrastructure */}
-            <InfrastructureSummary assets={overview.infrastructure_status} />
+            <InfrastructureSummary assets={overview.infrastructure_status ?? []} />
           </div>
         )}
       </main>

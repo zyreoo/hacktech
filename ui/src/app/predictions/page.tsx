@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePredictions, usePredictionIssues, useFlights, useRunPrediction } from "@/lib/hooks/queries";
+import { usePredictions, usePredictionIssues, useFlights, useRunPrediction, useOverview } from "@/lib/hooks/queries";
 import { formatDateTime, formatConfidence, formatDelay } from "@/lib/utils";
 import { BrainCircuit, ShieldCheck, AlertTriangle, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,15 @@ const issueSeverityStyles: Record<string, string> = {
 export default function PredictionsPage() {
   const { data: predictions = [], isLoading, isError, refetch } = usePredictions({ limit: 200 });
   const { data: issues = [], isLoading: issuesLoading } = usePredictionIssues({ limit: 200 });
-  const { data: flights = [] } = useFlights({ limit: 50 });
+  const { data: flightsFromApi = [], isLoading: flightsLoading, isError: flightsError } = useFlights({ limit: 50 });
+  const { data: overview } = useOverview();
+  const flightsFromOverview = overview?.current_flights ?? [];
+  const flights = Array.isArray(flightsFromApi) && flightsFromApi.length > 0 ? flightsFromApi : flightsFromOverview;
   const runPredictionMutation = useRunPrediction();
   const [selectedFlightId, setSelectedFlightId] = useState<string>("");
   const activeFlights = Array.isArray(flights) ? flights.filter((f) => f.status && !["cancelled", "departed", "arrived"].includes(f.status)) : [];
+  const selectedFlight = selectedFlightId ? activeFlights.find((f) => String(f.id) === selectedFlightId) : null;
+  const selectedFlightLabel = selectedFlight ? `${selectedFlight.flight_code} (${selectedFlight.origin} → ${selectedFlight.destination})` : null;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -48,12 +53,14 @@ export default function PredictionsPage() {
             Run arrival delay prediction for a flight. The new prediction will appear in the audit table below.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={selectedFlightId} onValueChange={setSelectedFlightId}>
+            <Select value={selectedFlightId} onValueChange={setSelectedFlightId} disabled={flightsLoading}>
               <SelectTrigger className="w-56">
-                <SelectValue placeholder="Select flight" />
+                <SelectValue placeholder={flightsLoading ? "Loading flights…" : activeFlights.length === 0 ? "No flights available" : "Select flight"}>
+                  {selectedFlightLabel}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
-                {activeFlights.slice(0, 15).map((f) => (
+                {activeFlights.slice(0, 20).map((f) => (
                   <SelectItem key={f.id} value={String(f.id)}>
                     {f.flight_code} ({f.origin} → {f.destination})
                   </SelectItem>
@@ -63,7 +70,7 @@ export default function PredictionsPage() {
             <Button
               type="button"
               size="sm"
-              disabled={!selectedFlightId || runPredictionMutation.isPending}
+              disabled={!selectedFlightId || runPredictionMutation.isPending || activeFlights.length === 0}
               onClick={() => {
                 const id = parseInt(selectedFlightId, 10);
                 if (!Number.isNaN(id)) runPredictionMutation.mutate({ flight_id: id });
@@ -71,6 +78,9 @@ export default function PredictionsPage() {
             >
               {runPredictionMutation.isPending ? "Running…" : "Run prediction"}
             </Button>
+            {activeFlights.length === 0 && !flightsLoading && (
+              <span className="text-sm text-amber-600 dark:text-amber-400">No flights to predict. Start the backend and ensure seed data is loaded.</span>
+            )}
             {runPredictionMutation.isSuccess && (
               <span className="text-sm text-emerald-600 dark:text-emerald-400">Prediction saved. Check the table below.</span>
             )}
@@ -139,7 +149,7 @@ export default function PredictionsPage() {
           <EmptyState
             icon={BrainCircuit}
             title="No predictions yet"
-            description="Run a prediction from a flight detail page to populate the audit trail."
+            description="Select a flight above and click Run prediction, or run a prediction from a flight detail page. The audit table will show delay, confidence, missing features, and model version."
           />
         )}
 

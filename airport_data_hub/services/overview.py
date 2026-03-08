@@ -98,7 +98,7 @@ def _to_infrastructure_response(a):
         network_health=a.network_health,
         tamper_detected=a.tamper_detected,
         location=a.location,
-        last_updated=a.last_updated,
+        last_updated=getattr(a, "last_updated", None),
     )
 
 

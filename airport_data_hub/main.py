@@ -5,12 +5,14 @@ Single source of truth for airport operations; all modules plug into this backbo
 Run from repo root:  uvicorn airport_data_hub.main:app --reload
 Or from any dir:     python airport_data_hub/run.py   (or  python -m airport_data_hub.run)
 """
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from pathlib import Path
 from .database import init_db
+from . import models  # noqa: F401 - register all tables with Base.metadata before init_db create_all
 from .routes import flights, flight_updates, runways, resources, alerts, infrastructure, passenger_flow, services, identity, retail, overview, aodb, prediction
 from .prediction import inference
 from .services.synthetic import start_synthetic_feeder, stop_synthetic_feeder
@@ -21,14 +23,25 @@ async def lifespan(app: FastAPI):
     init_db()
     # Seed with demo data when DB is empty so the dashboard and synthetic generator have something to show.
     from .seed import seed
+    from .database import SessionLocal
+    from .crud import resolve_orphan_alerts
     seed()
+    # Resolve any orphan alerts created by seed (e.g. flight 99999, resource A12) so they don't clutter the UI.
+    db = SessionLocal()
+    try:
+        n = resolve_orphan_alerts(db)
+        if n:
+            print(f"Resolved {n} orphan alert(s) created by seed.")
+    finally:
+        db.close()
     model_path = Path(__file__).parent / "models" / "delay_model.joblib"
     inference.load_model(model_path)
-    # Start synthetic data generator in the background so the dashboard always feels live.
-    start_synthetic_feeder()
+    # Start synthetic data generator in the background (skip when testing).
+    if not os.environ.get("TESTING"):
+        start_synthetic_feeder()
     yield
-    # no shutdown needed for SQLite; stop background synthetic feeder
-    stop_synthetic_feeder()
+    if not os.environ.get("TESTING"):
+        stop_synthetic_feeder()
 
 
 app = FastAPI(

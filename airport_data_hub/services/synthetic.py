@@ -31,16 +31,20 @@ def _clamp(value: float, lo: float, hi: float) -> float:
 
 
 def _select_active_flights(db: Session) -> list[Flight]:
-    """Pick flights that are close to 'now' so changes are visible."""
+    """Pick flights in a wide window so seeded/demo data (e.g. 06:00) is always included."""
     now = datetime.utcnow()
-    window_start = now - timedelta(hours=2)
-    window_end = now + timedelta(hours=4)
-    return (
+    window_start = now - timedelta(hours=24)
+    window_end = now + timedelta(hours=48)
+    flights = (
         db.query(Flight)
         .filter(Flight.scheduled_time >= window_start, Flight.scheduled_time <= window_end)
         .order_by(Flight.scheduled_time)
         .all()
     )
+    # If no flights in window (e.g. wrong TZ), use any flights so synthetic still produces flow data
+    if not flights:
+        flights = db.query(Flight).order_by(Flight.scheduled_time.desc()).limit(20).all()
+    return flights
 
 
 def _tick_once(db: Session) -> None:

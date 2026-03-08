@@ -24,12 +24,67 @@ def seed():
     init_db()
     db = SessionLocal()
     try:
-        # Avoid re-seeding if already populated
+        now = datetime.utcnow()
+
+        # Avoid full re-seed if already populated
         if db.query(Flight).first():
+            # Ensure passenger flow data exists so dashboard and /passenger-flow always have data
+            if not db.query(PassengerFlow).first():
+                flights = db.query(Flight).order_by(Flight.id).limit(6).all()
+                for f in flights:
+                    db.add(PassengerFlow(
+                        flight_id=f.id,
+                        check_in_count=80,
+                        security_queue_count=40 + (f.id % 5) * 15,
+                        boarding_count=50,
+                        predicted_queue_time=8.0,
+                        terminal_zone="T5" if f.id % 2 else "T2",
+                        timestamp=now,
+                    ))
+                db.commit()
+                print("Added initial passenger flow rows for existing flights.")
+            # Ensure every flight has at least one FlightUpdate so predictions get good input (reported_eta, etc.)
+            flights = db.query(Flight).order_by(Flight.id).all()
+            added = 0
+            for f in flights:
+                if db.query(FlightUpdate).filter(FlightUpdate.flight_id == f.id).first() is None:
+                    base_eta = f.estimated_time or f.scheduled_time + timedelta(hours=1)
+                    db.add(FlightUpdate(
+                        flight_id=f.id,
+                        source_name="airline",
+                        reported_eta=base_eta,
+                        reported_status=f.status or "scheduled",
+                        reported_gate=f.gate,
+                        reported_at=now - timedelta(minutes=5),
+                        confidence_score=0.9,
+                    ))
+                    added += 1
+            if added:
+                db.commit()
+                print(f"Added {added} flight update(s) for flights that had none (predictions will have better input quality).")
+            # Ensure all A1–A18 and B1–B22 gates exist (add missing so Resources page shows full set)
+            gate_assignments = {"A1": "BA178", "A3": "AZ104", "A8": "LH902", "A12": "BA301", "A18": "LX362", "B7": "AF1042", "B22": "KL1008"}
+            existing = {r.resource_name for r in db.query(Resource).filter(Resource.resource_type == "gate").all()}
+            added_gates = 0
+            for i in range(1, 19):
+                name = f"A{i}"
+                if name not in existing:
+                    assigned = gate_assignments.get(name)
+                    loc = "T1" if name in ("A8", "A18") else "T5 North"
+                    db.add(Resource(resource_name=name, resource_type="gate", status="assigned" if assigned else "available", assigned_to=assigned, location=loc))
+                    added_gates += 1
+            for i in range(1, 23):
+                name = f"B{i}"
+                if name not in existing:
+                    assigned = gate_assignments.get(name)
+                    db.add(Resource(resource_name=name, resource_type="gate", status="assigned" if assigned else "available", assigned_to=assigned, location="T2"))
+                    added_gates += 1
+            if added_gates:
+                db.commit()
+                print(f"Added {added_gates} gate(s) (A1–A18, B1–B22) so all are present.")
             print("DB already seeded. Skip or delete airport_hub.db to re-seed.")
             return
 
-        now = datetime.utcnow()
         base = now.replace(hour=6, minute=0, second=0, microsecond=0)
 
         # ----- Runways (2) -----
@@ -149,22 +204,40 @@ def seed():
                     reported_at=r_at,
                     confidence_score=conf,
                 ))
+        # Flight updates for remaining flights (4–9) so predictions have reported_eta and good input quality
+        for f in flights[3:]:
+            base_eta = f.estimated_time or f.scheduled_time + timedelta(hours=1)
+            db.add(FlightUpdate(
+                flight_id=f.id,
+                source_name="airline",
+                reported_eta=base_eta,
+                reported_status=f.status or "scheduled",
+                reported_gate=f.gate,
+                reported_at=t0 - timedelta(minutes=5),
+                confidence_score=0.9,
+            ))
         db.commit()
 
-        # ----- Resources (gates, stands, desks) -----
-        resources_data = [
-            ("A1", "gate", "assigned", "BA178", "T5 North"),
-            ("A3", "gate", "assigned", "AZ104", "T5 North"),
-            ("A8", "gate", "assigned", "LH902", "T1"),
-            ("A12", "gate", "assigned", "BA301", "T5 North"),
-            ("A18", "gate", "assigned", "LX362", "T1"),
-            ("B3", "gate", "available", None, "T2"),
-            ("B7", "gate", "assigned", "AF1042", "T2"),
-            ("B22", "gate", "assigned", "KL1008", "T2"),
+        # ----- Resources: all A gates (A1–A18), all B gates (B1–B22), D4, desks -----
+        gate_assignments = {
+            "A1": "BA178", "A3": "AZ104", "A8": "LH902", "A12": "BA301", "A18": "LX362",
+            "B7": "AF1042", "B22": "KL1008",
+        }
+        resources_data = []
+        for i in range(1, 19):
+            name = f"A{i}"
+            loc = "T1" if name in ("A8", "A18") else "T5 North"
+            assigned = gate_assignments.get(name)
+            resources_data.append((name, "gate", "assigned" if assigned else "available", assigned, loc))
+        for i in range(1, 23):
+            name = f"B{i}"
+            assigned = gate_assignments.get(name)
+            resources_data.append((name, "gate", "assigned" if assigned else "available", assigned, "T2"))
+        resources_data.extend([
             ("D4", "gate", "assigned", "IB3166", "T4"),
             ("Check-in Zone A", "desk", "available", None, "T5"),
             ("Security Lane 1", "desk", "available", None, "T5"),
-        ]
+        ])
         for name, rtype, status, assigned, loc in resources_data:
             db.add(Resource(resource_name=name, resource_type=rtype, status=status, assigned_to=assigned, location=loc))
         db.commit()

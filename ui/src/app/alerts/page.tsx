@@ -43,13 +43,16 @@ function getSuggestedAction(alert: { alert_type: string; suggested_action?: stri
   return alert.suggested_action ?? SUGGESTED_ACTION_BY_TYPE[alert.alert_type] ?? null;
 }
 
+type AlertStatusFilter = "active" | "resolved" | "all";
+
 export default function AlertsPage() {
-  const [showResolved, setShowResolved] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<AlertStatusFilter>("active");
   const [filterSeverity, setFilterSeverity] = useState("all");
   const [filterType, setFilterType] = useState("all");
 
+  const resolvedParam = statusFilter === "active" ? false : statusFilter === "resolved" ? true : undefined;
   const { data: alerts = [], isLoading, isError, refetch } = useAlerts({
-    resolved: showResolved ? undefined : false,
+    resolved: resolvedParam,
     limit: 200,
   });
   const { data: issues = [], isLoading: issuesLoading } = useAlertIssues({ limit: 300 });
@@ -68,7 +71,16 @@ export default function AlertsPage() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <Header title="Alerts" subtitle="Active operational alerts and notifications" />
+      <Header
+        title="Alerts"
+        subtitle={
+          statusFilter === "resolved"
+            ? "Viewing resolved alerts only. Use the status filter to see active or all."
+            : statusFilter === "all"
+              ? "Viewing all alerts (active + resolved). Use the status filter to narrow."
+              : "Active operational alerts and notifications. Use the status filter to view resolved."
+        }
+      />
       <main className="flex-1 overflow-y-auto p-6">
         {/* Self-healing & data quality */}
         <section className="mb-6">
@@ -126,7 +138,10 @@ export default function AlertsPage() {
                           setFixError(null);
                           resolveAlertMutation.mutate(
                             { id: issue.alert_id, resolved: true },
-                            { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to resolve alert") }
+                            {
+                              onSuccess: () => setFixError(null),
+                              onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to resolve alert"),
+                            }
                           );
                         }}
                       >
@@ -143,6 +158,17 @@ export default function AlertsPage() {
 
         {/* Filters */}
         <div className="mb-5 flex flex-wrap items-center gap-3">
+          <Select value={statusFilter} onValueChange={(v) => setStatusFilter((v as AlertStatusFilter) ?? "active")}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="active">Active only</SelectItem>
+              <SelectItem value="resolved">Resolved only</SelectItem>
+              <SelectItem value="all">All (active + resolved)</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select value={filterSeverity} onValueChange={(v) => setFilterSeverity(v ?? "all")}>
             <SelectTrigger className="w-40">
               <SelectValue placeholder="Severity" />
@@ -166,16 +192,6 @@ export default function AlertsPage() {
               ))}
             </SelectContent>
           </Select>
-
-          <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={showResolved}
-              onChange={(e) => setShowResolved(e.target.checked)}
-              className="rounded"
-            />
-            Show resolved
-          </label>
 
           <span className="ml-auto text-xs text-slate-500">
             {filtered.length} alert{filtered.length !== 1 ? "s" : ""}

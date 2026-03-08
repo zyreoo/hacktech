@@ -7,15 +7,22 @@ interface KpiStripProps {
 }
 
 export function KpiStrip({ overview }: KpiStripProps) {
-  const totalFlights = overview.current_flights.length;
-  const activeAlerts = overview.active_alerts.filter((a) => !a.resolved);
+  const flights = overview.current_flights ?? [];
+  const alerts = overview.active_alerts ?? [];
+  const runways = overview.runway_conditions ?? [];
+  const queues = overview.passenger_queues ?? [];
+  const resources = overview.resource_status ?? [];
+  const assets = overview.infrastructure_status ?? [];
+
+  const totalFlights = flights.length;
+  const activeAlerts = alerts.filter((a) => !a.resolved);
   const criticalAlerts = activeAlerts.filter((a) => a.severity === "critical");
-  const runwaysWithHazards = overview.runway_conditions.filter((r) => r.hazard_detected).length;
-  const totalPassengers = overview.passenger_queues.reduce(
+  const runwaysWithHazards = runways.filter((r) => r.hazard_detected).length;
+  const totalPassengers = queues.reduce(
     (sum, q) => sum + q.check_in_count + q.security_queue_count + q.boarding_count,
     0
   );
-  const delayedFlights = overview.current_flights.filter(
+  const delayedFlights = flights.filter(
     (f) => f.status === "delayed" || (f.predicted_arrival_delay_min ?? 0) > 15
   ).length;
 
@@ -37,7 +44,7 @@ export function KpiStrip({ overview }: KpiStripProps) {
       />
       <MetricCard
         title="Runways"
-        value={overview.runway_conditions.length}
+        value={runways.length}
         icon={Wind}
         highlight={runwaysWithHazards > 0 ? "danger" : "default"}
         subtitle={`${runwaysWithHazards} hazards detected`}
@@ -50,20 +57,20 @@ export function KpiStrip({ overview }: KpiStripProps) {
       />
       <MetricCard
         title="Resources"
-        value={overview.resource_status.length}
-        subtitle={`${overview.resource_status.filter((r) => r.status === "available").length} available`}
+        value={resources.length}
+        subtitle={`${resources.filter((r) => r.status === "available").length} available`}
       />
       <MetricCard
         title="Infra Assets"
-        value={overview.infrastructure_status.length}
+        value={assets.length}
         highlight={
-          overview.infrastructure_status.some((a) => a.tamper_detected)
+          assets.some((a) => a.tamper_detected)
             ? "danger"
-            : overview.infrastructure_status.some((a) => a.status === "degraded" || a.status === "offline")
+            : assets.some((a) => a.status === "degraded" || a.status === "offline")
             ? "warning"
             : "default"
         }
-        subtitle={`${overview.infrastructure_status.filter((a) => a.tamper_detected).length} tamper flags`}
+        subtitle={`${assets.filter((a) => a.tamper_detected).length} tamper flags`}
       />
     </div>
   );

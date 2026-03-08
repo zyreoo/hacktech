@@ -9,7 +9,7 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 
 
 @router.get("", response_model=list[AlertResponse])
-def list_alerts(resolved: bool | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_alerts(resolved: bool | None = None, skip: int = 0, limit: int = 200, db: Session = Depends(get_db)):
     alerts = get_alerts(db, resolved=resolved, skip=skip, limit=limit)
     return [AlertResponse.model_validate(a) for a in alerts]
 

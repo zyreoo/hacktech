@@ -174,4 +174,5 @@ class PredictionAudit(Base):
     prediction_outcome = Column(String(32), nullable=True)  # ml_model | rules_fallback | insufficient_data
     input_quality_score = Column(Float, nullable=True)  # 0-1
     missing_features = Column(Text, nullable=True)  # JSON array
-    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    stale_data_warnings = Column(Text, nullable=True)  # JSON array
+    operational_reason_codes = Column(Text, nullable=True)  # JSON array

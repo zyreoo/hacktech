@@ -116,6 +116,17 @@ def _migrate_flights_reconciled_eta():
         pass
 
 
+def _migrate_infrastructure_last_updated():
+    """Add last_updated to infrastructure_assets if missing (older DBs)."""
+    from sqlalchemy import text
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("ALTER TABLE infrastructure_assets ADD COLUMN last_updated DATETIME"))
+            conn.commit()
+    except Exception:
+        pass
+
+
 def _migrate_queue_alert_messages():
     """
     One-time: update existing queue alerts so message shows flight code instead of flight_id.
@@ -146,6 +157,18 @@ def _migrate_queue_alert_messages():
         db.close()
 
 
+def _resolve_orphan_alerts_on_startup():
+    """Resolve alerts that reference deleted entities (passenger_flow, infrastructure, etc.)."""
+    from .crud import resolve_orphan_alerts
+    db = SessionLocal()
+    try:
+        n = resolve_orphan_alerts(db)
+        if n:
+            print(f"Resolved {n} orphan alert(s) (entity no longer exists).")
+    finally:
+        db.close()
+
+
 def init_db():
     """Create all tables. Called at app startup or via seed."""
     Base.metadata.create_all(bind=engine)
@@ -154,4 +177,6 @@ def init_db():
     _migrate_alerts_uniqueness_key()
     _backfill_alerts_uniqueness_key()
     _migrate_flights_reconciled_eta()
+    _migrate_infrastructure_last_updated()
     _migrate_queue_alert_messages()
+    _resolve_orphan_alerts_on_startup()

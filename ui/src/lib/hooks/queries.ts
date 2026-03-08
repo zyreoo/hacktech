@@ -196,11 +196,12 @@ export const useResolveAlert = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, resolved = true }: { id: number; resolved?: boolean }) => resolveAlert(id, resolved),
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       queryClient.invalidateQueries({ queryKey: ["alerts", "issues"] });
       queryClient.invalidateQueries({ queryKey: ["overview"] });
       queryClient.invalidateQueries({ queryKey: ["aodb-overview"] });
+      await queryClient.refetchQueries({ queryKey: ["overview"] });
     },
   });
 };
@@ -251,6 +252,9 @@ export const useReassignFlight = () => {
       queryClient.invalidateQueries({ queryKey: ["flights"] });
       queryClient.invalidateQueries({ queryKey: ["flights", "issues"] });
       queryClient.invalidateQueries({ queryKey: ["aodb-overview"] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
+      queryClient.invalidateQueries({ queryKey: ["resources", "issues"] });
     },
   });
 };
@@ -263,6 +267,8 @@ export const useRunPrediction = () => {
       queryClient.invalidateQueries({ queryKey: ["flight", variables.flight_id] });
       queryClient.invalidateQueries({ queryKey: ["predictions-flight", variables.flight_id] });
       queryClient.invalidateQueries({ queryKey: ["predictions"] });
+      queryClient.invalidateQueries({ queryKey: ["overview"] });
+      queryClient.invalidateQueries({ queryKey: ["aodb-overview"] });
     },
   });
 };
