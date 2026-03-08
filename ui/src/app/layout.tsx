@@ -19,7 +19,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Airport Data Hub",
+  title: "SkySentinel",
   description: "Airport Operations Control Platform",
 };
 

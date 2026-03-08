@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { usePassengerFlow, usePassengerFlowIssues } from "@/lib/hooks/queries";
+import { usePassengerFlow, usePassengerFlowIssues, useOverview } from "@/lib/hooks/queries";
 import { formatDateTime } from "@/lib/utils";
 import { Users, UserCheck, Shield, PlaneLanding, Activity, ShieldCheck, AlertTriangle } from "lucide-react";
 
@@ -22,7 +22,10 @@ const issueSeverityStyles: Record<string, string> = {
 
 export default function PassengerFlowPage() {
   const { data, isLoading, isError, refetch } = usePassengerFlow({ limit: 200 });
-  const flows = Array.isArray(data) ? data : [];
+  const { data: overview } = useOverview();
+  const flowsFromApi = Array.isArray(data) ? data : [];
+  const flowsFromOverview = overview?.passenger_queues ?? [];
+  const flows = flowsFromApi.length > 0 ? flowsFromApi : flowsFromOverview;
   const { data: issues = [], isLoading: issuesLoading } = usePassengerFlowIssues({ limit: 300 });
 
   // Add update tracking
@@ -122,7 +125,11 @@ export default function PassengerFlowPage() {
         {isError && <ErrorState message="Could not load passenger flow." onRetry={() => refetch()} />}
 
         {!isLoading && !isError && flows.length === 0 && (
-          <EmptyState icon={Users} title="No flow data" description="No passenger flow data available." />
+          <EmptyState
+            icon={Users}
+            title="No flow data"
+            description="No passenger flow data available. Start the backend (uvicorn airport_data_hub.main:app --reload from repo root) and wait a few seconds for the synthetic feeder to add data."
+          />
         )}
 
         {flows.length > 0 && (

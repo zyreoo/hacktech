@@ -7,8 +7,7 @@ import { FlightsTable } from "@/components/flights/flights-table";
 import { FlightFilters, type FlightFilterState } from "@/components/flights/flight-filters";
 import { TableLoadingState } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { useFlights, useFlightIssues, useReassignFlight } from "@/lib/hooks/queries";
-import { useRunways } from "@/lib/hooks/queries";
+import { useFlights, useFlightIssues, useReassignFlight, useRunways, useResources } from "@/lib/hooks/queries";
 import { Button } from "@/components/ui/button";
 import { ShieldCheck, AlertTriangle } from "lucide-react";
 
@@ -23,8 +22,19 @@ export default function FlightsPage() {
   const { data: flights, isLoading, isError, refetch } = useFlights({ limit: 200 });
   const { data: issues = [], isLoading: issuesLoading } = useFlightIssues({ limit: 500 });
   const { data: runways = [] } = useRunways();
+  const { data: resources = [] } = useResources({ limit: 200 });
   const reassignFlightMutation = useReassignFlight();
   const activeRunwayId = runways.find((r) => r.status === "active")?.id ?? null;
+  const availableGates = useMemo(
+    () => resources
+      .filter((r) => (r.resource_type || "").toLowerCase() === "gate" && (r.status || "").toLowerCase() === "available")
+      .map((r) => r.resource_name)
+      .filter((n): n is string => Boolean(n))
+      .sort(),
+    [resources]
+  );
+  const getAvailableGateForConflict = (conflictGate: string | undefined) =>
+    conflictGate ? availableGates.find((g) => g !== conflictGate) ?? availableGates[0] : availableGates[0];
 
   const [filters, setFilters] = useState<FlightFilterState>({
     search: "",
@@ -121,21 +131,24 @@ export default function FlightsPage() {
                           {reassignFlightMutation.isPending ? "Applying…" : "Reassign to active runway"}
                         </Button>
                       )}
-                      {issue.type === "gate_conflict" && issue.flight_id != null && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-2 shrink-0 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
-                          disabled={reassignFlightMutation.isPending}
-                          onClick={() => reassignFlightMutation.mutate({
-                            id: issue.flight_id!,
-                            gate: "B7",
-                            reconciled_gate: "B7",
-                          })}
-                        >
-                          {reassignFlightMutation.isPending ? "Applying…" : "Reassign to B7"}
-                        </Button>
-                      )}
+                      {issue.type === "gate_conflict" && issue.flight_id != null && (() => {
+                        const targetGate = getAvailableGateForConflict(issue.gate ?? undefined);
+                        return (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="mt-2 shrink-0 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                            disabled={reassignFlightMutation.isPending || !targetGate}
+                            onClick={() => targetGate && reassignFlightMutation.mutate({
+                              id: issue.flight_id!,
+                              gate: targetGate,
+                              reconciled_gate: targetGate,
+                            })}
+                          >
+                            {reassignFlightMutation.isPending ? "Applying…" : targetGate ? `Reassign to ${targetGate}` : "No available gate"}
+                          </Button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </li>
