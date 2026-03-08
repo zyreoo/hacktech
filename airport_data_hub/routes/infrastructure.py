@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..crud import get_infrastructure_assets, get_infrastructure_asset_by_id, update_infrastructure_status
-from ..schemas import InfrastructureAssetResponse, InfrastructureStatusUpdate
+from ..crud import get_infrastructure_assets, get_infrastructure_asset_by_id, update_infrastructure_status, get_infrastructure_issues
+from ..schemas import InfrastructureAssetResponse, InfrastructureStatusUpdate, InfrastructureIssueResponse
 
 router = APIRouter(prefix="/infrastructure", tags=["infrastructure"])
 
@@ -10,6 +10,13 @@ router = APIRouter(prefix="/infrastructure", tags=["infrastructure"])
 @router.get("", response_model=list[InfrastructureAssetResponse])
 def list_infrastructure(db: Session = Depends(get_db)):
     return get_infrastructure_assets(db)
+
+
+@router.get("/issues", response_model=list[InfrastructureIssueResponse])
+def list_infrastructure_issues(db: Session = Depends(get_db)):
+    """Self-healing: degraded/offline assets, tamper detected."""
+    raw = get_infrastructure_issues(db)
+    return [InfrastructureIssueResponse(**x) for x in raw]
 
 
 @router.get("/{id}", response_model=InfrastructureAssetResponse)

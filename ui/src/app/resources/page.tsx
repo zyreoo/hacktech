@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableLoadingState } from "@/components/shared/loading-state";
@@ -10,14 +11,25 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useResources } from "@/lib/hooks/queries";
+import { useResources, useResourceIssues, useUpdateResourceStatus, useReassignFlight } from "@/lib/hooks/queries";
 import { resourceStatusVariant } from "@/lib/utils";
-import { Layers } from "lucide-react";
+import { Layers, AlertTriangle, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const issueSeverityStyles: Record<string, string> = {
+  critical: "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 text-red-800 dark:text-red-200",
+  high: "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
+  medium: "border-sky-200 bg-sky-50 dark:border-sky-900/50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+};
 
 export default function ResourcesPage() {
   const { data: resources = [], isLoading, isError, refetch } = useResources({ limit: 200 });
+  const { data: issues = [], isLoading: issuesLoading } = useResourceIssues();
+  const updateResource = useUpdateResourceStatus();
+  const reassignFlightMutation = useReassignFlight();
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
+  const [fixError, setFixError] = useState<string | null>(null);
 
   const resourceTypes = useMemo(
     () => [...new Set(resources.map((r) => r.resource_type))].sort(),
@@ -56,6 +68,102 @@ export default function ResourcesPage() {
             </div>
           ))}
         </div>
+
+        {/* Self-healing & conflicts */}
+        <section className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+            <ShieldCheck className="h-4 w-4 text-slate-500" />
+            Self-healing & conflicts
+          </h2>
+          {issuesLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-900/50 px-4 py-3 text-sm text-slate-500">
+              Checking for issues…
+            </div>
+          )}
+          {!issuesLoading && issues.length === 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-emerald-50/50 dark:border-slate-700 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              No conflicts or self-healing issues detected. Resources are aligned with live flight data.
+            </div>
+          )}
+          {!issuesLoading && issues.length > 0 && (
+            <ul className="space-y-2">
+              {issues.map((issue, i) => (
+                <li
+                  key={`${issue.type}-${issue.resource_id ?? issue.resource_name}-${i}`}
+                  className={`rounded-xl border px-4 py-3 text-sm ${issueSeverityStyles[issue.severity] ?? "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{issue.message}</p>
+                      <p className="mt-1 text-xs opacity-90">{issue.suggested_action}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {issue.resource_id != null && (
+                          <span className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs dark:bg-black/20">
+                            Resource #{issue.resource_id}
+                          </span>
+                        )}
+                        {issue.flight_id != null && (
+                          <Link
+                            href={`/command-center?flight=${issue.flight_id}`}
+                            className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs underline dark:bg-black/20 hover:opacity-80"
+                          >
+                            Flight #{issue.flight_id}
+                          </Link>
+                        )}
+                        {issue.flight_code && (
+                          <span className="font-mono text-xs opacity-90">{issue.flight_code}</span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {issue.resource_id != null && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                            disabled={updateResource.isPending || reassignFlightMutation.isPending}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setFixError(null);
+                              updateResource.mutate(
+                                { id: issue.resource_id!, status: "available", assigned_to: null },
+                                { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to release gate") }
+                              );
+                            }}
+                          >
+                            {updateResource.isPending ? "Applying…" : "Release gate"}
+                          </Button>
+                        )}
+                        {issue.type === "gate_mismatch" && issue.flight_id != null && issue.resource_name && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="shrink-0 border-sky-600 text-sky-700 hover:bg-sky-50 dark:border-sky-500 dark:text-sky-300 dark:hover:bg-sky-950/40"
+                            disabled={updateResource.isPending || reassignFlightMutation.isPending}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setFixError(null);
+                              reassignFlightMutation.mutate(
+                                { id: issue.flight_id!, gate: issue.resource_name, reconciled_gate: issue.resource_name },
+                                { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to align flight") }
+                              );
+                            }}
+                          >
+                            {reassignFlightMutation.isPending ? "Applying…" : "Align flight to this gate"}
+                          </Button>
+                        )}
+                      </div>
+                      {fixError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{fixError}</p>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
         {/* Filters */}
         <div className="mb-5 flex flex-wrap items-center gap-3">

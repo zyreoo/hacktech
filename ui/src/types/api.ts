@@ -116,7 +116,25 @@ export interface PredictionAudit {
   operational_reason_codes: OperationalReasonCode[] | null;
 }
 
+export interface PredictionIssue {
+  type: string;
+  prediction_id: number;
+  flight_id: number;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
+
 // ─── Passenger Flow ───────────────────────────────────────────────────────────
+
+export interface PassengerFlowIssue {
+  type: string;
+  flow_id: number;
+  flight_id: number;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
 
 export interface PassengerFlow {
   id: number;
@@ -143,6 +161,17 @@ export interface Runway {
   last_inspection_time: string | null;
 }
 
+export interface RunwayIssue {
+  type: string;
+  runway_id: number;
+  runway_code: string;
+  flight_id: number | null;
+  flight_code: string | null;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
+
 // ─── Resource ─────────────────────────────────────────────────────────────────
 
 export interface Resource {
@@ -152,6 +181,17 @@ export interface Resource {
   status: ResourceStatus;
   assigned_to: string | null;
   location: string | null;
+}
+
+export interface ResourceIssue {
+  type: string;
+  resource_id: number | null;
+  resource_name: string;
+  flight_id: number | null;
+  flight_code: string | null;
+  message: string;
+  severity: string;
+  suggested_action: string;
 }
 
 // ─── Alert ────────────────────────────────────────────────────────────────────
@@ -171,7 +211,38 @@ export interface Alert {
   suggested_action: string | null;
 }
 
+export interface AlertIssue {
+  type: string;
+  alert_id: number;
+  message: string;
+  severity: string;
+  suggested_action: string;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+}
+
+export interface FlightIssue {
+  type: string;
+  flight_id: number;
+  flight_code: string | null;
+  runway_id: number | null;
+  runway_code: string | null;
+  gate: string | null;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
+
 // ─── Infrastructure ───────────────────────────────────────────────────────────
+
+export interface InfrastructureIssue {
+  type: string;
+  asset_id: number;
+  asset_name: string;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
 
 export interface InfrastructureAsset {
   id: number;
@@ -185,6 +256,15 @@ export interface InfrastructureAsset {
 }
 
 // ─── Passenger Services ───────────────────────────────────────────────────────
+
+export interface ServiceIssue {
+  type: string;
+  service_id: number;
+  passenger_reference: string;
+  message: string;
+  severity: string;
+  suggested_action: string;
+}
 
 export interface PassengerService {
   id: number;

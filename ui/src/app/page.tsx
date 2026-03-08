@@ -9,14 +9,24 @@ import { PassengerQueueSummary } from "@/components/dashboard/passenger-queue-su
 import { InfrastructureSummary } from "@/components/dashboard/infrastructure-summary";
 import { CardLoadingState, SpinnerLoader } from "@/components/shared/loading-state";
 import { ErrorState } from "@/components/shared/error-state";
-import { useOverview } from "@/lib/hooks/queries";
+import { useOverview, useResolveAlert } from "@/lib/hooks/queries";
 import { useEffect, useState } from "react";
 import { Activity } from "lucide-react";
 
 export default function DashboardPage() {
   const { data: overview, isLoading, isError, refetch, dataUpdatedAt } = useOverview();
+  const resolveAlertMutation = useResolveAlert();
+  const [resolvingAlertId, setResolvingAlertId] = useState<number | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
+
+  const handleResolveAlert = (alertId: number) => {
+    setResolvingAlertId(alertId);
+    resolveAlertMutation.mutate(
+      { id: alertId, resolved: true },
+      { onSettled: () => setResolvingAlertId(null) }
+    );
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -70,7 +80,11 @@ export default function DashboardPage() {
                 <FlightsSummary flights={overview.current_flights} />
               </div>
               <div>
-                <ActiveAlertsCard alerts={overview.active_alerts} />
+                <ActiveAlertsCard
+                  alerts={overview.active_alerts}
+                  onResolve={handleResolveAlert}
+                  resolvingId={resolvingAlertId}
+                />
               </div>
             </div>
 

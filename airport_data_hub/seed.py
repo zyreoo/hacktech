@@ -179,6 +179,45 @@ def seed():
             db.add(Alert(alert_type=atype, severity=sev, source_module=src, message=msg, related_entity_type=rel_type, related_entity_id=rel_id, resolved=False))
         db.commit()
 
+        # ----- Wow scenario: intentional conflicts so self-healing panels show solutions -----
+        # 1) Runway closed but flight still assigned → runway_unavailable / runway_unavailable_assigned
+        r2.status = "closed"
+        # 2) Gate conflict: two flights same gate (BA301 A12, AF1042 also A12)
+        af1042 = next(f for f in flights if f.flight_code == "AF1042")
+        af1042.gate = "A12"
+        af1042.reconciled_gate = "A12"
+        # 3) Orphan resource: gate assigned to non-existent flight
+        db.add(Resource(resource_name="B99", resource_type="gate", status="assigned", assigned_to="GHOST999", location="T2"))
+        # 4) Stale critical alert (unresolved > 24h)
+        db.add(Alert(
+            alert_type="gate_conflict",
+            severity="critical",
+            source_module="data_hub",
+            message="Demo: critical gate conflict (stale – resolve to see it disappear)",
+            related_entity_type="resource",
+            related_entity_id="A12",
+            resolved=False,
+            created_at=now - timedelta(hours=25),
+            uniqueness_key="wow:stale_critical:1",
+        ))
+        # 5) Orphan alert: references non-existent flight
+        db.add(Alert(
+            alert_type="queue",
+            severity="warning",
+            source_module="data_hub",
+            message="Demo: alert points to deleted flight (orphan – resolve to clean up)",
+            related_entity_type="flight",
+            related_entity_id="99999",
+            resolved=False,
+            uniqueness_key="wow:orphan_alert:1",
+        ))
+        # 6) Runway hazard on r2 (closed) and r1 active with hazard → hazard_active_runway
+        r2.hazard_detected = True
+        r2.hazard_type = "debris reported"
+        r1.hazard_detected = True
+        r1.hazard_type = "FOD detected – inspect"
+        db.commit()
+
         # ----- InfrastructureAssets -----
         assets_data = [
             ("Jet Bridge A12", "jet_bridge", "operational", 0.98, False, "T5 A12"),

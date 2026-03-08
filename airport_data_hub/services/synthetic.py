@@ -167,8 +167,14 @@ def _tick_once(db: Session) -> None:
                 db.add(update)
 
 
-def _generator_loop(stop_event: threading.Event, interval_seconds: float = 1.5) -> None:
+# Slower interval so demo self-healing and conflicts stay visible (DB doesn’t change too fast).
+DEMO_INTERVAL_SECONDS = 8.0
+
+
+def _generator_loop(stop_event: threading.Event, interval_seconds: float = None) -> None:
     """Background loop that periodically mutates the DB."""
+    if interval_seconds is None:
+        interval_seconds = DEMO_INTERVAL_SECONDS
     while not stop_event.is_set():
         db = SessionLocal()
         try:
@@ -192,7 +198,7 @@ def start_synthetic_feeder() -> None:
     stop_event = threading.Event()
     thread = threading.Thread(
         target=_generator_loop,
-        args=(stop_event,),
+        args=(stop_event, DEMO_INTERVAL_SECONDS),
         name="synthetic-data-feeder",
         daemon=True,
     )
