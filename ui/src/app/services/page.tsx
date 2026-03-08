@@ -10,9 +10,14 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useServices, useIdentity, useRetail } from "@/lib/hooks/queries";
+import { useServices, useServiceIssues, useIdentity, useRetail } from "@/lib/hooks/queries";
 import { formatDateTime, verificationStatusVariant } from "@/lib/utils";
-import { ShoppingBag, ShieldCheck, UserCog, Users } from "lucide-react";
+import { ShoppingBag, ShieldCheck, UserCog, Users, AlertTriangle } from "lucide-react";
+
+const issueSeverityStyles: Record<string, string> = {
+  high: "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
+  medium: "border-sky-200 bg-sky-50 dark:border-sky-900/50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+};
 
 function serviceStatusVariant(status: string) {
   switch (status) {
@@ -34,6 +39,7 @@ function orderStatusVariant(status: string) {
 
 export default function ServicesPage() {
   const { data: services = [], isLoading: loadingServices, isError: errServices, refetch: refetchServices } = useServices({ limit: 100 });
+  const { data: issues = [], isLoading: issuesLoading } = useServiceIssues({ limit: 200 });
   const { data: identities = [], isLoading: loadingId, isError: errId } = useIdentity({ limit: 100 });
   const { data: retail = [], isLoading: loadingRetail, isError: errRetail } = useRetail({ limit: 100 });
 
@@ -53,6 +59,44 @@ export default function ServicesPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header title="Services / Identity / Retail" subtitle="Passenger services, digital identity, and retail activity" />
       <main className="flex-1 overflow-y-auto p-6">
+        {/* Self-healing */}
+        <section className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+            <ShieldCheck className="h-4 w-4 text-slate-500" />
+            Self-healing
+          </h2>
+          {issuesLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-900/50 px-4 py-3 text-sm text-slate-500">
+              Checking for issues…
+            </div>
+          )}
+          {!issuesLoading && issues.length === 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-emerald-50/50 dark:border-slate-700 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              No service issues. No stale pending requests.
+            </div>
+          )}
+          {!issuesLoading && issues.length > 0 && (
+            <ul className="mb-6 space-y-2">
+              {issues.map((issue, i) => (
+                <li
+                  key={`${issue.type}-${issue.service_id}-${i}`}
+                  className={`rounded-xl border px-4 py-3 text-sm ${issueSeverityStyles[issue.severity] ?? "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">{issue.message}</p>
+                      <p className="mt-1 text-xs opacity-90">{issue.suggested_action}</p>
+                      <span className="mt-2 inline-block rounded bg-white/60 px-2 py-0.5 font-mono text-xs dark:bg-black/20">{issue.passenger_reference}</span>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* Summary KPIs */}
         <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <MetricCard title="Service Requests" value={services.length} icon={UserCog} />

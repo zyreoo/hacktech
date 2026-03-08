@@ -52,6 +52,13 @@ class FlightPredictionUpdate(BaseModel):
     prediction_model_version: Optional[str] = None
 
 
+class FlightReassignUpdate(BaseModel):
+    """Reassign flight to another runway or gate (self-healing fix)."""
+    runway_id: Optional[int] = None
+    gate: Optional[str] = None
+    reconciled_gate: Optional[str] = None
+
+
 # ----- Arrival delay prediction -----
 class ReasonCode(BaseModel):
     factor: str
@@ -103,6 +110,16 @@ class PredictionAuditRead(BaseModel):
     stale_data_warnings: Optional[List[str]] = None
     operational_reason_codes: Optional[List[OperationalReasonCode]] = None
     model_config = ConfigDict(from_attributes=True)
+
+
+class PredictionIssueResponse(BaseModel):
+    """Self-healing / quality issue for a prediction."""
+    type: str
+    prediction_id: int
+    flight_id: int
+    message: str
+    severity: str
+    suggested_action: str
 
 
 # ----- FlightUpdate (AODB multi-source inputs) -----
@@ -167,6 +184,22 @@ class RunwayHazardUpdate(BaseModel):
     hazard_type: Optional[str] = None
 
 
+class RunwayStatusUpdate(BaseModel):
+    status: str  # active, closed, maintenance
+
+
+class RunwayIssueResponse(BaseModel):
+    """Self-healing / conflict issue for a runway."""
+    type: str
+    runway_id: int
+    runway_code: str
+    flight_id: Optional[int] = None
+    flight_code: Optional[str] = None
+    message: str
+    severity: str
+    suggested_action: str
+
+
 # ----- Resources -----
 class ResourceBase(BaseModel):
     resource_name: str
@@ -184,6 +217,18 @@ class ResourceResponse(ResourceBase):
 class ResourceStatusUpdate(BaseModel):
     status: str
     assigned_to: Optional[str] = None
+
+
+class ResourceIssueResponse(BaseModel):
+    """Self-healing / conflict issue for a resource."""
+    type: str
+    resource_id: Optional[int] = None
+    resource_name: str
+    flight_id: Optional[int] = None
+    flight_code: Optional[str] = None
+    message: str
+    severity: str
+    suggested_action: str
 
 
 # ----- Alerts -----
@@ -230,6 +275,30 @@ class AlertResolveUpdate(BaseModel):
     resolved: bool = True
 
 
+class AlertIssueResponse(BaseModel):
+    """Self-healing / data quality issue for an alert."""
+    type: str
+    alert_id: int
+    message: str
+    severity: str
+    suggested_action: str
+    related_entity_type: Optional[str] = None
+    related_entity_id: Optional[str] = None
+
+
+class FlightIssueResponse(BaseModel):
+    """Self-healing / conflict issue for a flight."""
+    type: str
+    flight_id: int
+    flight_code: Optional[str] = None
+    runway_id: Optional[int] = None
+    runway_code: Optional[str] = None
+    gate: Optional[str] = None
+    message: str
+    severity: str
+    suggested_action: str
+
+
 # ----- Infrastructure -----
 class InfrastructureAssetBase(BaseModel):
     asset_name: str
@@ -250,6 +319,33 @@ class InfrastructureStatusUpdate(BaseModel):
     status: str
     tamper_detected: Optional[bool] = None
     network_health: Optional[float] = None
+
+
+class InfrastructureIssueResponse(BaseModel):
+    type: str
+    asset_id: int
+    asset_name: str
+    message: str
+    severity: str
+    suggested_action: str
+
+
+class PassengerFlowIssueResponse(BaseModel):
+    type: str
+    flow_id: int
+    flight_id: int
+    message: str
+    severity: str
+    suggested_action: str
+
+
+class ServiceIssueResponse(BaseModel):
+    type: str
+    service_id: int
+    passenger_reference: str
+    message: str
+    severity: str
+    suggested_action: str
 
 
 # ----- PassengerServices -----

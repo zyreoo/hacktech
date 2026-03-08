@@ -2,8 +2,8 @@ from typing import Optional
 from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..crud import get_alerts, get_alert_by_id, update_alert_resolve
-from ..schemas import AlertResponse, AlertResolveUpdate
+from ..crud import get_alerts, get_alert_by_id, update_alert_resolve, get_alert_issues
+from ..schemas import AlertResponse, AlertResolveUpdate, AlertIssueResponse
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -12,6 +12,13 @@ router = APIRouter(prefix="/alerts", tags=["alerts"])
 def list_alerts(resolved: bool | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     alerts = get_alerts(db, resolved=resolved, skip=skip, limit=limit)
     return [AlertResponse.model_validate(a) for a in alerts]
+
+
+@router.get("/issues", response_model=list[AlertIssueResponse])
+def list_alert_issues(limit: int = 300, db: Session = Depends(get_db)):
+    """Self-healing and data quality: stale critical, orphan references, duplicate unresolved."""
+    raw = get_alert_issues(db, limit=limit)
+    return [AlertIssueResponse(**item) for item in raw]
 
 
 @router.get("/{id}", response_model=AlertResponse)

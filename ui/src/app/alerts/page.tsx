@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableLoadingState } from "@/components/shared/loading-state";
@@ -10,10 +11,18 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useAlerts } from "@/lib/hooks/queries";
+import { useAlerts, useAlertIssues, useResolveAlert } from "@/lib/hooks/queries";
+import { Button } from "@/components/ui/button";
 import { formatRelativeTime, alertSeverityVariant } from "@/lib/utils";
-import { Bell } from "lucide-react";
+import { Bell, ShieldCheck, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+const issueSeverityStyles: Record<string, string> = {
+  critical: "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 text-red-800 dark:text-red-200",
+  high: "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
+  medium: "border-sky-200 bg-sky-50 dark:border-sky-900/50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+  low: "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300",
+};
 
 const SEVERITY_ROWS: Record<string, string> = {
   critical: "bg-red-50/50 dark:bg-red-950/20",
@@ -43,6 +52,9 @@ export default function AlertsPage() {
     resolved: showResolved ? undefined : false,
     limit: 200,
   });
+  const { data: issues = [], isLoading: issuesLoading } = useAlertIssues({ limit: 300 });
+  const resolveAlertMutation = useResolveAlert();
+  const [fixError, setFixError] = useState<string | null>(null);
 
   const alertTypes = useMemo(() => [...new Set(alerts.map((a) => a.alert_type))].sort(), [alerts]);
 
@@ -58,6 +70,77 @@ export default function AlertsPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <Header title="Alerts" subtitle="Active operational alerts and notifications" />
       <main className="flex-1 overflow-y-auto p-6">
+        {/* Self-healing & data quality */}
+        <section className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+            <ShieldCheck className="h-4 w-4 text-slate-500" />
+            Self-healing & data quality
+          </h2>
+          {issuesLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-900/50 px-4 py-3 text-sm text-slate-500">
+              Checking for issues…
+            </div>
+          )}
+          {!issuesLoading && issues.length === 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-emerald-50/50 dark:border-slate-700 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              No alert data quality issues. No stale critical, orphan references, or duplicate unresolved alerts.
+            </div>
+          )}
+          {!issuesLoading && issues.length > 0 && (
+            <ul className="mb-6 space-y-2">
+              {issues.map((issue, i) => (
+                <li
+                  key={`${issue.type}-${issue.alert_id}-${i}`}
+                  className={cn(
+                    "rounded-xl border px-4 py-3 text-sm",
+                    issueSeverityStyles[issue.severity] ?? issueSeverityStyles.low
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{issue.message}</p>
+                      <p className="mt-1 text-xs opacity-90">{issue.suggested_action}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Link
+                          href={`/alerts?highlight=${issue.alert_id}`}
+                          className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs underline dark:bg-black/20 hover:opacity-80"
+                        >
+                          Alert #{issue.alert_id}
+                        </Link>
+                        {issue.related_entity_type && issue.related_entity_id && (
+                          <span className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs dark:bg-black/20">
+                            {issue.related_entity_type} {issue.related_entity_id}
+                          </span>
+                        )}
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="mt-2 shrink-0 border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                        disabled={resolveAlertMutation.isPending}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setFixError(null);
+                          resolveAlertMutation.mutate(
+                            { id: issue.alert_id, resolved: true },
+                            { onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to resolve alert") }
+                          );
+                        }}
+                      >
+                        {resolveAlertMutation.isPending ? "Applying…" : "Resolve alert"}
+                      </Button>
+                      {fixError && <p className="mt-2 text-xs text-red-600 dark:text-red-400">{fixError}</p>}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {/* Filters */}
         <div className="mb-5 flex flex-wrap items-center gap-3">
           <Select value={filterSeverity} onValueChange={(v) => setFilterSeverity(v ?? "all")}>

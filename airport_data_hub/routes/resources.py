@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from ..database import get_db
-from ..crud import get_resources, get_resource_by_id, update_resource_status
-from ..schemas import ResourceResponse, ResourceStatusUpdate
+from ..crud import get_resources, get_resource_by_id, update_resource_status, get_resource_issues
+from ..schemas import ResourceResponse, ResourceStatusUpdate, ResourceIssueResponse
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
@@ -10,6 +10,13 @@ router = APIRouter(prefix="/resources", tags=["resources"])
 @router.get("", response_model=list[ResourceResponse])
 def list_resources(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     return get_resources(db, skip=skip, limit=limit)
+
+
+@router.get("/issues", response_model=list[ResourceIssueResponse])
+def list_resource_issues(db: Session = Depends(get_db)):
+    """Self-healing and conflicts: gate mismatches, double assignments, orphan/stale assignments."""
+    raw = get_resource_issues(db)
+    return [ResourceIssueResponse(**item) for item in raw]
 
 
 @router.get("/{id}", response_model=ResourceResponse)

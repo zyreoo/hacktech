@@ -13,11 +13,13 @@ from ..crud import (
     create_prediction_audit,
     list_predictions,
     get_predictions_for_flight,
+    get_prediction_issues,
 )
 from ..schemas import (
     PredictRequest,
     PredictResponse,
     PredictionAuditRead,
+    PredictionIssueResponse,
     FlightPredictionUpdate,
     ReasonCode,
     OperationalReasonCode,
@@ -111,6 +113,13 @@ def get_predictions(skip: int = 0, limit: int = 50, db: Session = Depends(get_db
     """List recent predictions (audit trail)."""
     rows = list_predictions(db, skip=skip, limit=limit)
     return [_audit_to_read(r) for r in rows]
+
+
+@router.get("/predictions/issues", response_model=list[PredictionIssueResponse])
+def get_predictions_issues(limit: int = 200, db: Session = Depends(get_db)):
+    """Self-healing and quality: stale, low confidence, fallback, poor input quality."""
+    raw = get_prediction_issues(db, limit=limit)
+    return [PredictionIssueResponse(**item) for item in raw]
 
 
 @router.get("/predictions/flights/{flight_id}", response_model=list[PredictionAuditRead])

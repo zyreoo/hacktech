@@ -22,6 +22,7 @@ from .models import (
 from .schemas import (
     FlightStatusUpdate,
     FlightPredictionUpdate,
+    FlightReassignUpdate,
     FlightUpdateCreate,
     RunwayHazardUpdate,
     ResourceStatusUpdate,
@@ -43,11 +44,78 @@ def get_flight_by_code(db: Session, flight_code: str) -> Optional[Flight]:
     return db.query(Flight).filter(Flight.flight_code == flight_code).first()
 
 
+def get_flight_issues(db: Session, limit: int = 500) -> List[dict]:
+    """
+    Self-healing and conflicts for flights (runway/gate alignment with operational state).
+    Returns: list of { type, flight_id, flight_code?, runway_id?, runway_code?, gate?, message, severity, suggested_action }.
+    """
+    from collections import defaultdict
+    flights = get_flights(db, skip=0, limit=limit)
+    runways = get_runways(db)
+    runway_by_id = {r.id: r for r in runways}
+    issues: List[dict] = []
+
+    for f in flights:
+        if f.status and (f.status.lower() in ("cancelled", "departed", "arrived")):
+            continue
+        if f.runway_id is not None:
+            rw = runway_by_id.get(f.runway_id)
+            if rw and (rw.status or "").lower() in ("closed", "maintenance"):
+                issues.append({
+                    "type": "runway_unavailable",
+                    "flight_id": f.id,
+                    "flight_code": f.flight_code,
+                    "runway_id": f.runway_id,
+                    "runway_code": rw.runway_code,
+                    "gate": getattr(f, "reconciled_gate", None) or f.gate,
+                    "message": f"Flight {f.flight_code} is assigned to runway {rw.runway_code} which is {rw.status}.",
+                    "severity": "critical",
+                    "suggested_action": "Reassign flight to an active runway.",
+                })
+
+    flights_by_gate: dict = defaultdict(list)
+    for f in flights:
+        gate = getattr(f, "reconciled_gate", None) or f.gate
+        if gate and (f.status or "").lower() not in ("cancelled", "departed", "arrived"):
+            flights_by_gate[gate].append(f)
+    for gate, flist in flights_by_gate.items():
+        if len(flist) > 1:
+            for f in flist:
+                issues.append({
+                    "type": "gate_conflict",
+                    "flight_id": f.id,
+                    "flight_code": f.flight_code,
+                    "runway_id": None,
+                    "runway_code": None,
+                    "gate": gate,
+                    "message": f"Gate {gate} shared by multiple flights: {[x.flight_code for x in flist]}.",
+                    "severity": "critical",
+                    "suggested_action": "Reassign one flight to another gate.",
+                })
+    return issues
+
+
 def update_flight_status(db: Session, id: int, payload: FlightStatusUpdate) -> Optional[Flight]:
     flight = get_flight_by_id(db, id)
     if not flight:
         return None
     flight.status = payload.status
+    db.commit()
+    db.refresh(flight)
+    return flight
+
+
+def update_flight_reassign(db: Session, id: int, payload: FlightReassignUpdate) -> Optional[Flight]:
+    """Reassign flight to another runway or gate (self-healing)."""
+    flight = get_flight_by_id(db, id)
+    if not flight:
+        return None
+    if payload.runway_id is not None:
+        flight.runway_id = payload.runway_id
+    if payload.gate is not None:
+        flight.gate = payload.gate
+    if payload.reconciled_gate is not None:
+        flight.reconciled_gate = payload.reconciled_gate
     db.commit()
     db.refresh(flight)
     return flight
@@ -176,7 +244,124 @@ def list_predictions(db: Session, skip: int = 0, limit: int = 50) -> List[Predic
     return db.query(PredictionAudit).order_by(PredictionAudit.created_at.desc()).offset(skip).limit(limit).all()
 
 
+def get_prediction_issues(db: Session, limit: int = 200) -> List[dict]:
+    """
+    Self-healing and quality issues for predictions.
+    Returns: list of { type, prediction_id, flight_id, message, severity, suggested_action }.
+    """
+    from datetime import datetime, timedelta
+    import json
+    rows = list_predictions(db, skip=0, limit=limit)
+    issues: List[dict] = []
+    now = datetime.utcnow()
+    stale_threshold = now - timedelta(hours=2)
+    flight_cache: dict = {}
+    for a in rows:
+        fid = a.flight_id
+        if fid not in flight_cache:
+            flight_cache[fid] = get_flight_by_id(db, fid)
+        flight = flight_cache[fid]
+        flight_departed = flight and (flight.status or "").lower() in ("departed", "arrived", "cancelled")
+        ts = getattr(a, "prediction_timestamp", None) or getattr(a, "created_at", None)
+        outcome = getattr(a, "prediction_outcome", None)
+        conf = getattr(a, "confidence_score", None)
+        iq = getattr(a, "input_quality_score", None)
+        mf_raw = getattr(a, "missing_features", None)
+        sdw_raw = getattr(a, "stale_data_warnings", None)
+        missing_count = 0
+        if mf_raw:
+            try:
+                mf = json.loads(mf_raw) if isinstance(mf_raw, str) else mf_raw
+                missing_count = len(mf) if isinstance(mf, list) else 0
+            except Exception:
+                pass
+        stale_count = 0
+        if sdw_raw:
+            try:
+                sdw = json.loads(sdw_raw) if isinstance(sdw_raw, str) else sdw_raw
+                stale_count = len(sdw) if isinstance(sdw, list) else 0
+            except Exception:
+                pass
+
+        if ts and ts < stale_threshold and not flight_departed:
+            issues.append({
+                "type": "stale_prediction",
+                "prediction_id": a.id,
+                "flight_id": fid,
+                "message": f"Prediction for flight #{fid} is over 2 hours old and flight may still be active.",
+                "severity": "medium",
+                "suggested_action": "Re-run prediction to refresh ETA and delay.",
+            })
+        if conf is not None and conf < 0.5:
+            issues.append({
+                "type": "low_confidence",
+                "prediction_id": a.id,
+                "flight_id": fid,
+                "message": f"Prediction for flight #{fid} has low confidence ({conf:.2f}).",
+                "severity": "medium",
+                "suggested_action": "Add more flight updates or verify data quality.",
+            })
+        if outcome in ("rules_fallback", "insufficient_data"):
+            issues.append({
+                "type": "fallback_or_insufficient",
+                "prediction_id": a.id,
+                "flight_id": fid,
+                "message": f"Prediction for flight #{fid} used outcome '{outcome}' (not full ML).",
+                "severity": "low",
+                "suggested_action": "Improve input data or accept rules-based estimate.",
+            })
+        if (missing_count > 2 or stale_count > 0) and iq is not None and iq < 0.5:
+            issues.append({
+                "type": "poor_input_quality",
+                "prediction_id": a.id,
+                "flight_id": fid,
+                "message": f"Prediction for flight #{fid} has poor input quality (missing/stale data).",
+                "severity": "medium",
+                "suggested_action": "Ingest more sources or refresh flight updates.",
+            })
+    return issues
+
+
 # ----- PassengerFlow -----
+def get_passenger_flow_issues(db: Session, limit: int = 300) -> List[dict]:
+    """Self-healing / data quality for passenger flow: stale data, orphan flight_id, invalid counts."""
+    from datetime import datetime, timedelta
+    flows = get_passenger_flows(db, skip=0, limit=limit)
+    issues: List[dict] = []
+    now = datetime.utcnow()
+    stale_threshold = now - timedelta(minutes=30)
+    for pf in flows:
+        if pf.timestamp and pf.timestamp < stale_threshold:
+            issues.append({
+                "type": "stale_flow",
+                "flow_id": pf.id,
+                "flight_id": pf.flight_id,
+                "message": f"Flow record #{pf.id} for flight #{pf.flight_id} is over 30 min old.",
+                "severity": "medium",
+                "suggested_action": "Refresh queue data or verify sensor feed.",
+            })
+        flight = get_flight_by_id(db, pf.flight_id)
+        if not flight:
+            issues.append({
+                "type": "orphan_flow",
+                "flow_id": pf.id,
+                "flight_id": pf.flight_id,
+                "message": f"Flow record #{pf.id} references non-existent flight #{pf.flight_id}.",
+                "severity": "high",
+                "suggested_action": "Remove or reassign flow data.",
+            })
+        if (pf.security_queue_count or 0) < 0 or (pf.check_in_count or 0) < 0 or (pf.boarding_count or 0) < 0:
+            issues.append({
+                "type": "invalid_counts",
+                "flow_id": pf.id,
+                "flight_id": pf.flight_id,
+                "message": f"Flow #{pf.id} has negative queue/count values.",
+                "severity": "medium",
+                "suggested_action": "Correct sensor or ingestion pipeline.",
+            })
+    return issues
+
+
 def get_passenger_flows(db: Session, skip: int = 0, limit: int = 200) -> List[PassengerFlow]:
     return db.query(PassengerFlow).order_by(PassengerFlow.timestamp.desc()).offset(skip).limit(limit).all()
 
@@ -205,6 +390,74 @@ def update_runway_hazard(db: Session, id: int, payload: RunwayHazardUpdate) -> O
     return runway
 
 
+def update_runway_status(db: Session, id: int, status: str) -> Optional[Runway]:
+    runway = get_runway_by_id(db, id)
+    if not runway:
+        return None
+    runway.status = status
+    db.commit()
+    db.refresh(runway)
+    return runway
+
+
+def get_runway_issues(db: Session) -> List[dict]:
+    """
+    Self-healing and conflict detection for runways vs flights.
+    Returns: list of { type, runway_id, runway_code, flight_id?, flight_code?, message, severity, suggested_action }.
+    """
+    runways = get_runways(db)
+    flights = get_flights(db, skip=0, limit=500)
+    issues: List[dict] = []
+    flights_by_runway: dict = {}
+    for f in flights:
+        if f.runway_id is not None:
+            flights_by_runway.setdefault(f.runway_id, []).append(f)
+
+    for r in runways:
+        rid, rcode, status, hazard, grip = r.id, r.runway_code, (r.status or "").lower(), r.hazard_detected, r.grip_score
+        assigned_flights = flights_by_runway.get(rid) or []
+
+        if status in ("closed", "maintenance") and assigned_flights:
+            for f in assigned_flights:
+                if f.status not in ("cancelled", "departed", "arrived"):
+                    issues.append({
+                        "type": "runway_unavailable_assigned",
+                        "runway_id": rid,
+                        "runway_code": rcode,
+                        "flight_id": f.id,
+                        "flight_code": f.flight_code,
+                        "message": f"Runway {rcode} is {status} but flight {f.flight_code} is still assigned to it.",
+                        "severity": "critical",
+                        "suggested_action": "Reassign flight to another runway or reopen runway.",
+                    })
+        if hazard and status == "active":
+            issues.append({
+                "type": "hazard_active_runway",
+                "runway_id": rid,
+                "runway_code": rcode,
+                "flight_id": None,
+                "flight_code": None,
+                "message": f"Runway {rcode} has hazard detected but status is still active.",
+                "severity": "high",
+                "suggested_action": "Close runway or clear hazard and update status.",
+            })
+        if grip is not None and grip < 0.4 and assigned_flights:
+            active = [f for f in assigned_flights if f.status not in ("cancelled", "departed", "arrived")]
+            if active:
+                issues.append({
+                    "type": "low_grip_assigned",
+                    "runway_id": rid,
+                    "runway_code": rcode,
+                    "flight_id": active[0].id,
+                    "flight_code": active[0].flight_code,
+                    "message": f"Runway {rcode} has low grip score ({grip:.2f}) with flight(s) assigned.",
+                    "severity": "medium",
+                    "suggested_action": "Inspect surface or reassign flights until grip improves.",
+                })
+
+    return issues
+
+
 # ----- Resources -----
 def get_resources(db: Session, skip: int = 0, limit: int = 100) -> List[Resource]:
     return db.query(Resource).offset(skip).limit(limit).all()
@@ -219,14 +472,171 @@ def update_resource_status(db: Session, id: int, payload: ResourceStatusUpdate) 
     if not resource:
         return None
     resource.status = payload.status
+    # Allow clearing assignment when client sends assigned_to: null (release gate)
     if payload.assigned_to is not None:
         resource.assigned_to = payload.assigned_to
+    else:
+        resource.assigned_to = None
     db.commit()
     db.refresh(resource)
     return resource
 
 
+def get_resource_issues(db: Session) -> List[dict]:
+    """
+    Self-healing and conflict detection for resources vs flights.
+    Returns: list of { type, resource_id, resource_name, flight_id?, flight_code?, message, severity, suggested_action }.
+    """
+    from collections import defaultdict
+    resources = get_resources(db, skip=0, limit=500)
+    flights = get_flights(db, skip=0, limit=500)
+    issues: List[dict] = []
+    gate_resources = [r for r in resources if (r.resource_type or "").lower() == "gate"]
+    flight_by_code = {f.flight_code: f for f in flights}
+    # Flights by gate (gate/reconciled_gate)
+    from collections import defaultdict
+    flights_by_gate: dict = defaultdict(list)
+    for f in flights:
+        g = f.reconciled_gate or f.gate
+        if g:
+            flights_by_gate[g].append(f)
+
+    for r in gate_resources:
+        rid, rname, assigned = r.id, r.resource_name, r.assigned_to
+        # Orphan: assigned_to flight that doesn't exist or is cancelled
+        if assigned:
+            flight = flight_by_code.get(assigned)
+            if not flight:
+                issues.append({
+                    "type": "orphan_assignment",
+                    "resource_id": rid,
+                    "resource_name": rname,
+                    "flight_id": None,
+                    "flight_code": assigned,
+                    "message": f"Gate {rname} assigned to {assigned} but no such flight in AODB.",
+                    "severity": "high",
+                    "suggested_action": "Unassign gate or add/correct flight.",
+                })
+            else:
+                # Mismatch: flight has different gate than resource
+                flight_gate = flight.reconciled_gate or flight.gate
+                if flight_gate and flight_gate != rname:
+                    issues.append({
+                        "type": "gate_mismatch",
+                        "resource_id": rid,
+                        "resource_name": rname,
+                        "flight_id": flight.id,
+                        "flight_code": flight.flight_code,
+                        "message": f"Gate {rname} assigned to {flight.flight_code} but flight shows gate {flight_gate}.",
+                        "severity": "medium",
+                        "suggested_action": "Align resource assignment with reconciled gate or update flight gate.",
+                    })
+                if flight.status in ("cancelled", "departed"):
+                    issues.append({
+                        "type": "stale_assignment",
+                        "resource_id": rid,
+                        "resource_name": rname,
+                        "flight_id": flight.id,
+                        "flight_code": flight.flight_code,
+                        "message": f"Gate {rname} still assigned to {flight.flight_code} (status: {flight.status}).",
+                        "severity": "medium",
+                        "suggested_action": "Release gate for reuse.",
+                    })
+
+    # Conflict: multiple flights for same gate
+    for gate_name, flist in flights_by_gate.items():
+        if len(flist) > 1:
+            resource = next((x for x in gate_resources if x.resource_name == gate_name), None)
+            issues.append({
+                "type": "gate_conflict",
+                "resource_id": resource.id if resource else None,
+                "resource_name": gate_name,
+                "flight_id": None,
+                "flight_code": ", ".join(f.flight_code for f in flist),
+                "message": f"Gate {gate_name} claimed by multiple flights: {[f.flight_code for f in flist]}.",
+                "severity": "critical",
+                "suggested_action": "Reassign one flight to another gate or adjust schedule.",
+            })
+
+    return issues
+
+
 # ----- Alerts -----
+def get_alert_issues(db: Session, limit: int = 300) -> List[dict]:
+    """
+    Self-healing and data quality for alerts.
+    Returns: list of { type, alert_id, message, severity, suggested_action, related_entity_type?, related_entity_id? }.
+    """
+    from datetime import datetime, timedelta
+    from collections import defaultdict
+    alerts = get_alerts(db, resolved=None, skip=0, limit=limit)
+    issues: List[dict] = []
+    now = datetime.utcnow()
+    stale_threshold = now - timedelta(hours=24)
+
+    for a in alerts:
+        if not a.resolved and a.severity == "critical" and a.created_at < stale_threshold:
+            issues.append({
+                "type": "stale_critical",
+                "alert_id": a.id,
+                "message": f"Critical alert #{a.id} has been unresolved for over 24 hours.",
+                "severity": "high",
+                "suggested_action": "Resolve or escalate; consider auto-resolve policy for old critical alerts.",
+                "related_entity_type": a.related_entity_type,
+                "related_entity_id": a.related_entity_id,
+            })
+        entity_type, entity_id = a.related_entity_type, a.related_entity_id
+        if entity_type and entity_id:
+            rid = entity_id if isinstance(entity_id, str) else str(entity_id)
+            exists = False
+            if entity_type == "flight":
+                try:
+                    fid = int(rid)
+                    exists = get_flight_by_id(db, fid) is not None
+                except (ValueError, TypeError):
+                    pass
+            elif entity_type == "runway":
+                try:
+                    rwid = int(rid)
+                    exists = get_runway_by_id(db, rwid) is not None
+                except (ValueError, TypeError):
+                    pass
+            elif entity_type == "resource":
+                try:
+                    res_id = int(rid)
+                    exists = get_resource_by_id(db, res_id) is not None
+                except (ValueError, TypeError):
+                    pass
+            if not exists:
+                issues.append({
+                    "type": "orphan_alert",
+                    "alert_id": a.id,
+                    "message": f"Alert #{a.id} references {entity_type} {entity_id} which no longer exists.",
+                    "severity": "medium",
+                    "suggested_action": "Resolve alert or fix related entity reference.",
+                    "related_entity_type": entity_type,
+                    "related_entity_id": entity_id,
+                })
+
+    key_to_alerts: dict = defaultdict(list)
+    for a in alerts:
+        if not a.resolved and a.uniqueness_key:
+            key_to_alerts[a.uniqueness_key].append(a)
+    for key, group in key_to_alerts.items():
+        if len(group) > 1:
+            ids = [x.id for x in group]
+            issues.append({
+                "type": "duplicate_unresolved",
+                "alert_id": group[0].id,
+                "message": f"Multiple unresolved alerts share key '{key[:50]}...' (ids: {ids}).",
+                "severity": "low",
+                "suggested_action": "Resolve duplicates; ensure single alert per uniqueness_key.",
+                "related_entity_type": group[0].related_entity_type,
+                "related_entity_id": group[0].related_entity_id,
+            })
+    return issues
+
+
 def get_alerts(db: Session, resolved: Optional[bool] = None, skip: int = 0, limit: int = 100) -> List[Alert]:
     q = db.query(Alert).order_by(Alert.created_at.desc())
     if resolved is not None:
@@ -343,7 +753,53 @@ def update_infrastructure_status(db: Session, id: int, payload: InfrastructureSt
     return asset
 
 
+def get_infrastructure_issues(db: Session) -> List[dict]:
+    """Self-healing: degraded/offline assets, tamper detected."""
+    assets = get_infrastructure_assets(db)
+    issues: List[dict] = []
+    for a in assets:
+        if (a.status or "").lower() in ("degraded", "offline", "failed", "maintenance"):
+            issues.append({
+                "type": "asset_unhealthy",
+                "asset_id": a.id,
+                "asset_name": a.asset_name,
+                "message": f"Asset {a.asset_name} is {a.status}.",
+                "severity": "high" if (a.status or "").lower() in ("offline", "failed") else "medium",
+                "suggested_action": "Inspect and set to operational when cleared.",
+            })
+        if getattr(a, "tamper_detected", False):
+            issues.append({
+                "type": "tamper_detected",
+                "asset_id": a.id,
+                "asset_name": a.asset_name,
+                "message": f"Tamper detected on {a.asset_name}.",
+                "severity": "critical",
+                "suggested_action": "Verify asset and clear tamper flag when resolved.",
+            })
+    return issues
+
+
 # ----- PassengerServices -----
+def get_service_issues(db: Session, limit: int = 200) -> List[dict]:
+    """Self-healing: stale pending services (e.g. pending > 2 hours)."""
+    from datetime import datetime, timedelta
+    services = get_passenger_services(db, status=None, skip=0, limit=limit)
+    issues: List[dict] = []
+    now = datetime.utcnow()
+    stale_threshold = now - timedelta(hours=2)
+    for s in services:
+        if (s.status or "").lower() == "pending" and s.request_time < stale_threshold:
+            issues.append({
+                "type": "stale_pending_service",
+                "service_id": s.id,
+                "passenger_reference": s.passenger_reference,
+                "message": f"Service #{s.id} ({s.service_type}) pending for over 2 hours.",
+                "severity": "medium",
+                "suggested_action": "Complete or cancel the service request.",
+            })
+    return issues
+
+
 def get_passenger_services(db: Session, status: Optional[str] = None, skip: int = 0, limit: int = 100) -> List[PassengerService]:
     q = db.query(PassengerService).order_by(PassengerService.request_time.desc())
     if status:

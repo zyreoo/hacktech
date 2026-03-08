@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
+import Link from "next/link";
 import { Header } from "@/components/layout/header";
 import { MetricCard } from "@/components/shared/metric-card";
 import { SpinnerLoader } from "@/components/shared/loading-state";
@@ -9,13 +10,20 @@ import { EmptyState } from "@/components/shared/empty-state";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { usePassengerFlow } from "@/lib/hooks/queries";
+import { usePassengerFlow, usePassengerFlowIssues } from "@/lib/hooks/queries";
 import { formatDateTime } from "@/lib/utils";
-import { Users, UserCheck, Shield, PlaneLanding, Activity } from "lucide-react";
-import Link from "next/link";
+import { Users, UserCheck, Shield, PlaneLanding, Activity, ShieldCheck, AlertTriangle } from "lucide-react";
+
+const issueSeverityStyles: Record<string, string> = {
+  critical: "border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-950/30 text-red-800 dark:text-red-200",
+  high: "border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200",
+  medium: "border-sky-200 bg-sky-50 dark:border-sky-900/50 dark:bg-sky-950/30 text-sky-800 dark:text-sky-200",
+};
 
 export default function PassengerFlowPage() {
-  const { data: flows = [], isLoading, isError, refetch } = usePassengerFlow({ limit: 200 });
+  const { data, isLoading, isError, refetch } = usePassengerFlow({ limit: 200 });
+  const flows = Array.isArray(data) ? data : [];
+  const { data: issues = [], isLoading: issuesLoading } = usePassengerFlowIssues({ limit: 300 });
 
   // Add update tracking
   const [lastUpdate, setLastUpdate] = useState<string>('');
@@ -23,7 +31,7 @@ export default function PassengerFlowPage() {
   
   useEffect(() => {
     if (flows.length > 0) {
-      const latest = flows.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+      const latest = [...flows].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
       setLastUpdate(new Date(latest.timestamp).toLocaleTimeString());
       setUpdateCount(c => c + 1);
     }
@@ -67,6 +75,49 @@ export default function PassengerFlowPage() {
         } 
       />
       <main className="flex-1 overflow-y-auto p-6">
+        {/* Self-healing & data quality */}
+        <section className="mb-6">
+          <h2 className="mb-3 flex items-center gap-2 text-base font-semibold text-slate-800 dark:text-slate-100">
+            <ShieldCheck className="h-4 w-4 text-slate-500" />
+            Self-healing & data quality
+          </h2>
+          {issuesLoading && (
+            <div className="rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-900/50 px-4 py-3 text-sm text-slate-500">
+              Checking for issues…
+            </div>
+          )}
+          {!issuesLoading && Array.isArray(issues) && issues.length === 0 && (
+            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-emerald-50/50 dark:border-slate-700 dark:bg-emerald-950/20 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-200">
+              <ShieldCheck className="h-4 w-4 shrink-0" />
+              No flow data quality issues. No stale, orphan, or invalid counts.
+            </div>
+          )}
+          {!issuesLoading && Array.isArray(issues) && issues.length > 0 && (
+            <ul className="mb-6 space-y-2">
+              {issues.map((issue, i) => (
+                <li
+                  key={`${issue.type}-${issue.flow_id}-${i}`}
+                  className={`rounded-xl border px-4 py-3 text-sm ${issueSeverityStyles[issue.severity] ?? "border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300"}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{issue.message}</p>
+                      <p className="mt-1 text-xs opacity-90">{issue.suggested_action}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <Link href={`/flights/${issue.flight_id}`} className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs underline dark:bg-black/20 hover:opacity-80">
+                          Flight #{issue.flight_id}
+                        </Link>
+                        <span className="rounded bg-white/60 px-2 py-0.5 font-mono text-xs dark:bg-black/20">Flow #{issue.flow_id}</span>
+                      </div>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
         {isLoading && <SpinnerLoader />}
         {isError && <ErrorState message="Could not load passenger flow." onRetry={() => refetch()} />}
 
