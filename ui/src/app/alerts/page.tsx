@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAlerts, useAlertIssues, useResolveAlert } from "@/lib/hooks/queries";
+import { getApiErrorMessage } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime, alertSeverityVariant } from "@/lib/utils";
 import { Bell, ShieldCheck, AlertTriangle } from "lucide-react";
@@ -58,6 +59,7 @@ export default function AlertsPage() {
   const { data: issues = [], isLoading: issuesLoading } = useAlertIssues({ limit: 300 });
   const resolveAlertMutation = useResolveAlert();
   const [fixError, setFixError] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<number | null>(null);
 
   const alertTypes = useMemo(() => [...new Set(alerts.map((a) => a.alert_type))].sort(), [alerts]);
 
@@ -140,7 +142,7 @@ export default function AlertsPage() {
                             { id: issue.alert_id, resolved: true },
                             {
                               onSuccess: () => setFixError(null),
-                              onError: (err) => setFixError(err instanceof Error ? err.message : "Failed to resolve alert"),
+                              onError: (err) => setFixError(getApiErrorMessage(err) || "Failed to resolve alert"),
                             }
                           );
                         }}
@@ -198,6 +200,12 @@ export default function AlertsPage() {
           </span>
         </div>
 
+        {fixError && (
+          <p className="mb-3 text-sm text-red-600 dark:text-red-400" role="alert">
+            {fixError}
+          </p>
+        )}
+
         {isLoading && <TableLoadingState rows={8} />}
         {isError && <ErrorState message="Could not load alerts." onRetry={() => refetch()} />}
 
@@ -218,6 +226,7 @@ export default function AlertsPage() {
                   <TableHead>Source</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>State</TableHead>
+                  <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -269,6 +278,31 @@ export default function AlertsPage() {
                         label={alert.resolved ? "Resolved" : "Active"}
                         variant={alert.resolved ? "success" : "warning"}
                       />
+                    </TableCell>
+                    <TableCell>
+                      {!alert.resolved && Number.isFinite(Number(alert.id)) && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-500 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                          disabled={resolvingId === Number(alert.id)}
+                          onClick={() => {
+                            setFixError(null);
+                            setResolvingId(Number(alert.id));
+                            resolveAlertMutation.mutate(
+                              { id: Number(alert.id), resolved: true },
+                              {
+                                onSuccess: () => setFixError(null),
+                                onError: (err) => setFixError(getApiErrorMessage(err) || "Failed to resolve alert"),
+                                onSettled: () => setResolvingId(null),
+                              }
+                            );
+                          }}
+                        >
+                          {resolvingId === Number(alert.id) ? "Applying…" : "Solve"}
+                        </Button>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
